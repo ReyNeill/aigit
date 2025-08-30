@@ -11,7 +11,6 @@ import (
     "runtime"
     "strconv"
     "strings"
-    "syscall"
     "time"
 )
 
@@ -51,9 +50,7 @@ func maybeAutostartWatch() error {
     args := []string{"watch", "-interval", interval, "-settle", settle, "-summary", summary, "-model", model}
     cmd := exec.Command(os.Args[0], args...)
     // detach
-    if runtime.GOOS != "windows" {
-        cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-    }
+    detach(cmd)
     // Silence output; could redirect to a log file if desired
     devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
     cmd.Stdout = devnull
@@ -264,4 +261,3 @@ func splitComma(s string) []string {
     }
     return out
 }
-
