@@ -338,22 +338,29 @@ func doCheckpoint(summary string) error {
     }
 
     fmt.Printf("update-arrived!\n")
+    logLine("update-arrived!")
     fmt.Printf("Summary: %s\n", summary)
+    logLine("Summary: %s", summary)
     // Print a concise list of changed files for this checkpoint
     if files, err := git("diff-tree", "--no-commit-id", "--name-status", "-r", newSha); err == nil && strings.TrimSpace(files) != "" {
         fmt.Println("Files:")
+        logLine("Files:")
         scanner := bufio.NewScanner(strings.NewReader(files))
         count := 0
         for scanner.Scan() {
-            fmt.Printf("  %s\n", scanner.Text())
+            line := scanner.Text()
+            fmt.Printf("  %s\n", line)
+            logLine("  %s", line)
             count++
             if count >= 20 {
                 fmt.Println("  ...")
+                logLine("  ...")
                 break
             }
         }
     }
     fmt.Printf("Checkpoint: %s  (%s)\n", newSha, summary)
+    logLine("Checkpoint: %s  (%s)", newSha, summary)
     // Optional autopush
     if remote := strings.TrimSpace(getGitConfig("aigit.pushRemote")); remote != "" {
         if err := pushCheckpoints(remote); err != nil {
