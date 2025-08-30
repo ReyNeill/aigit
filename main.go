@@ -629,6 +629,17 @@ func doTail(lines int) error {
     }
 }
 
+// logLine appends a formatted line to the repo-scoped log file.
+func logLine(format string, a ...any) {
+    dir, err := aigitDir()
+    if err != nil { return }
+    logp := filepath.Join(dir, "aigit.log")
+    f, err := os.OpenFile(logp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+    if err != nil { return }
+    defer f.Close()
+    fmt.Fprintf(f, format+"\n", a...)
+}
+
 // suggestSummary returns a one-line summary and the mode used (AI or diff).
 func suggestSummary(summaryMode, aiModel string) (summary string, used string) {
     switch strings.ToLower(summaryMode) {
