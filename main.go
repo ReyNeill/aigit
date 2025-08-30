@@ -194,6 +194,7 @@ func printHelp() {
     fmt.Println("  aigit apply --from <user>        # apply a remote user's checkpoint to worktree")
     fmt.Println("  aigit tail [-n 100]              # stream watcher logs (AI summaries + checkpoints)")
     fmt.Println("  aigit watch [-interval 3m] [-summary ai|diff|off]  # background snapshots on change")
+    fmt.Println("  aigit init-shell --zsh|--bash     # install shell integration so updates pop up while you work")
     fmt.Println("")
     fmt.Println("AI summaries (OpenRouter): set OPENROUTER_API_KEY, default model openai/gpt-oss-20b:free")
     fmt.Println("")
