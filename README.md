@@ -65,6 +65,16 @@ Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
+Automatic terminal updates (optional)
+- To display updates automatically in your terminal before each prompt (no `aigit tail` required), add the shell hook:
+
+```
+# zsh (~/.zshrc)
+source /path/to/aigit/scripts/aigit-shell.zsh
+```
+
+This prints new “update-arrived!”, “Summary: …”, and apply events whenever you press Enter in a repo.
+
 ## Note: You can teach LLMs how to use aigit pasting them the LLM.txt file!
 
 ## Commands
