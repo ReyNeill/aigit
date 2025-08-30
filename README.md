@@ -2,18 +2,17 @@
   <img src="assets/aigit-logo.png" alt="Aigit logo" width="200"/>
 </p>
 
-# Aigit — Git but updated for AI coding agents (optional human collaboration)
+# Aigit — Live code collaboration + manual checkpoints
 
-Aigit overlays live, restorable "checkpoint" commits on top of Git without touching your normal branch history. It snapshots your working tree (even during merges), writes to a separate ref (`refs/aigit/checkpoints/<branch>`), and generates concise one‑line summaries via OpenRouter. Optionally sync checkpoints to a remote and opt‑in to auto‑apply teammates’ updates — all without moving `HEAD`.
+Aigit makes remote work feel local. It streams live code updates with concise summaries to teammates on other machines, and also lets you create manual, restorable checkpoints without touching your normal branch history. Live updates auto‑apply; checkpoints are local by default and only shared when you explicitly push them.
 
 ## Features
 
-- No commits, all code changes happen live (including remotely)
-- Commits are now checkpoints one can restore and share with others, stored under `refs/aigit/checkpoints/<branch>`.
-- You can checkpoint while merging! So you can save your progress while resolving a big conflict.
-- Code updates and checkpoints come with one-sentence summaries via OpenRouter (default model `openai/gpt-oss-20b:free`) or a heuristic from `git diff`.
-- Our service (auto-code updates, etc) auto-starts after the first file save, indicating the code is been worked on, so you don't have to possible forget to `aigit status`
-- Optional remote sync: push your checkpoints to a per‑user namespace; fetch/accept others; opt‑in auto‑apply.
+- Live remote = local: edits on machine C are applied live on machine D (and vice versa) with summaries in the terminal.
+- Manual checkpoints: restorable snapshots under `refs/aigit/checkpoints/<branch>`, not auto‑shared.
+- Mid‑merge safe: checkpoint during merges; conflict info is preserved in metadata; `status` shows conflicted paths.
+- Summaries: AI via OpenRouter (`openai/gpt-oss-20b:free`) or diff fallback.
+- Autostart + idle: watcher starts after first aigit command; auto‑stops after 30 minutes without local edits.
 
 ## Install
 
@@ -56,13 +55,13 @@ aigit init-shell --zsh
 # then follow the printed instruction to add a single `source` line to ~/.zshrc or ~/.bashrc
 ```
 
-3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; updates (checkpoints, AI summaries, applies) pop up in your terminal while you work. You can stop the watcher in the repo by using `aigit stop`.
+3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; live updates (summaries + applies) pop up in your terminal while you work. Stop with `aigit stop`.
 
 4) Edit and save a file. You’ll see:
 
 ```
 Detected changes; live checkpoints activated.
-Checkpoint: <sha>  (<summary>)
+Live: <sha>  (<summary>)
 ```
 
 Notes
@@ -76,14 +75,13 @@ Notes
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
 - `aigit version` — print the version (set by GoReleaser in releases).
 - `aigit id` — show your computed user id and the local/remote ref mapping.
-- `aigit checkpoint -m "msg"` — manual snapshot with custom summary.
+- `aigit checkpoint -m "msg"` — manual snapshot (custom summary). Not auto‑shared.
+- `aigit checkpoint push [-remote origin]` — share manual checkpoints to the remote per‑user namespace.
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
 - `aigit restore <sha>` — restore files from a checkpoint into the worktree.
-- `aigit watch` — manual start of the watcher (auto‑started on first use; default interval 5m).
+- `aigit watch` — manual start of the watcher (auto‑started on first use; default interval 5m; idle auto‑stop 30m).
 - `aigit stop` — stop the background watcher for the current repository.
-- `aigit stop` — stop the background watcher for the current repository.
-- `aigit sync push [-remote origin]` — push your local checkpoints to a remote namespace.
-- `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote.
+- `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote (manual; usually not needed).
 - `aigit remote-list [--remote origin] [--user id] [-n 20] [--meta]` — list users with checkpoints, or show a user's remote checkpoints for the current branch.
 - `aigit apply --from <user> [--remote origin] [--sha <sha>]` — apply a remote user’s checkpoint to your worktree (latest if `--sha` omitted).
 - `aigit events -id <session> [--follow]` — internal helper used by the shell integration to stream new events.
@@ -95,22 +93,30 @@ Set per‑repo in `.git/config` or globally with `--global`.
 
 - `aigit.summary` — `ai` (default) | `diff` | `off`
 - `aigit.summaryModel` — default `openai/gpt-oss-20b:free`
-- `aigit.interval` — checkpoint cadence when active (e.g., `30s`, `2m`, `1h`)
+- `aigit.interval` — live update cadence when active (e.g., `30s`, `2m`, `1h`)
   - Default: `5m`. Example: `git config aigit.interval 2m`
 - `aigit.settle` — debounce window after saves (default `1.5s`)
 - `aigit.user` — override your user id for remote namespaces (defaults to `user.email`)
   - By default, Aigit uses your `git user.email` as the user id (safe for ref names). You can override via `aigit.user`.
 
-Remote sync (optional):
+Live collaboration (defaults):
 
-- `aigit.pushRemote` — remote name to auto‑push after checkpoints (e.g., `origin`)
-- `aigit.pullRemote` — remote name to fetch from periodically (e.g., `origin`)
-- `aigit.autoApply` — `true|false` enable auto‑apply of remote checkpoints
+- `aigit.pushRemote` — remote for live updates (defaults to `origin` if present)
+- `aigit.pullRemote` — remote to fetch live updates from (defaults to `origin` if present)
+- `aigit.autoApply` — `true|false` enable auto‑apply of live updates (default true)
 - `aigit.autoApplyFrom` — comma list of user ids or `*` for all (excluding yourself)
+
+Manual checkpoints (opt‑in share): use `aigit checkpoint push [-remote origin]` when you want to share.
 
 ## Remote Namespace
 
-Your local checkpoints live at `refs/aigit/checkpoints/<branch>`.
+Your manual checkpoints live at `refs/aigit/checkpoints/<branch>`.
+
+When pushing, Aigit maps them to a per‑user namespace on the remote:
+
+```
+refs/aigit/users/<user>/checkpoints/<branch>
+```
 
 When pushing, Aigit maps them to a per‑user namespace on the remote:
 
@@ -124,19 +130,27 @@ Fetching pulls these into local tracking refs under:
 refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 ```
 
-You can list and apply from those using `aigit apply`.
-To discover users and browse their checkpoints use `aigit remote-list`.
+You can list and apply manual checkpoints using `aigit remote-list` and `aigit apply`.
+
+Live updates use a separate namespace:
+
+```
+local:  refs/aigit/live/<branch>
+remote: refs/aigit/users/<user>/live/<branch>
+track:  refs/remotes/<remote>/aigit/users/<user>/live/<branch>
+```
 
 ## Why It’s Different
-- Clean history: Doesn’t touch `refs/heads/<branch>`; writes to `refs/aigit/...`.
-- Mid‑merge safe: Snapshot the working files (including conflict markers) via a temporary index.
-- No HEAD moves: Restore files from any checkpoint without moving `HEAD`.
-- Live collaboration: Optional push/pull of checkpoint refs; opt‑in auto‑apply.
+ - Remote work feels local: Live updates stream between machines and auto‑apply.
+ - Clean history: Manual checkpoints don’t touch `refs/heads/<branch>`.
+ - Mid‑merge safe: Snapshot the working files (including conflict markers) via a temporary index.
+ - No HEAD moves: Restore files from any checkpoint without moving `HEAD`.
 
 ## How It Works
 - On save, Aigit builds a snapshot using a temporary Git index (leaves your index alone).
 - Creates a tree and commit via `git commit-tree`.
-- Updates `refs/aigit/checkpoints/<branch>` atomically with `git update-ref`.
+- Live updates go to `refs/aigit/live/<branch>` and are pushed/pulled/applied automatically.
+- Manual checkpoints go to `refs/aigit/checkpoints/<branch>` and are shared only via `aigit checkpoint push`.
 - Summaries come from OpenRouter (or a diff heuristic fallback).
 
 ## Requirements
@@ -149,7 +163,7 @@ To discover users and browse their checkpoints use `aigit remote-list`.
 - AI summaries call OpenRouter only when enabled. Keep `OPENROUTER_API_KEY` in your shell rc (e.g., `~/.zshrc`, `~/.bashrc`).
 
 ## Troubleshooting
-- Missing remote on push: `git remote add origin <url>` then `aigit sync push`.
+- Missing remote on push: `git remote add origin <url>` then `aigit checkpoint push`.
 - Status shows nothing: You’ll see “nothing here yet, clean workspace” on a clean tree.
  - Watcher didn’t start: Run `aigit status` once; ensure files are saved to trigger activation.
 - macOS heavy projects: Increase settle window: `aigit watch -settle 3s` or `git config aigit.settle 3s`.
@@ -180,12 +194,12 @@ Checkpoints work during merges because Aigit builds a tree from a temporary inde
 
 - Aigit does not move `HEAD`. It writes separate checkpoint commits and updates an internal ref.
 - Checkpoints include all files (tracked or previously untracked) in your worktree.
-- For team sync, ensure your remote allows pushing custom refs (most hosts do). The first push may require `aigit sync push`.
+- For team sync, ensure your remote allows pushing custom refs (most hosts do). The first manual checkpoint share may require `aigit checkpoint push`.
 - Auto‑apply writes files into your working tree. Enable it only if you want live updates from selected users.
 
 ## For Agents
 
-If you’re using an AI coding agent, share the `LLM.txt` file in this repo. It explains Aigit’s model, guardrails, and the exact commands to use (checkpoint, list, restore, status, sync/apply), including merge‑time behavior and summary style.
+If you’re using an AI coding agent, share the `LLM.txt` file. It explains Aigit’s model, guardrails, and the exact commands to use (checkpoint, list, restore, status, checkpoint push/apply), including merge‑time behavior and summary style.
 
 ## License
 

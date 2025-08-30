@@ -21,6 +21,8 @@ var (
     commit  = "none"
     date    = "unknown"
     quietEcho = false
+    // window to suppress creating a new local snapshot right after applying from remote
+    suppressSnapshotsUntil time.Time
 )
 
 func main() {
@@ -65,16 +67,21 @@ func main() {
 
     switch cmd {
     case "checkpoint":
+        // Subcommand: checkpoint push
+        if len(args) > 0 && args[0] == "push" {
+            fs := flag.NewFlagSet("checkpoint push", flag.ExitOnError)
+            remote := fs.String("remote", defaultStr(getGitConfig("aigit.pushRemote"), "origin"), "remote name")
+            if err := fs.Parse(args[1:]); err != nil { fatal(err) }
+            if err := pushCheckpoints(*remote); err != nil { fatal(err) }
+            break
+        }
+        // Default: create a manual checkpoint
         fs := flag.NewFlagSet("checkpoint", flag.ExitOnError)
         msg := fs.String("m", "(auto)", "one-line summary message")
         q := fs.Bool("q", false, "quiet (suppress local echo; shell integration will display updates)")
-        if err := fs.Parse(args); err != nil {
-            fatal(err)
-        }
+        if err := fs.Parse(args); err != nil { fatal(err) }
         quietEcho = *q
-        if err := doCheckpoint(*msg); err != nil {
-            fatal(err)
-        }
+        if err := doCheckpoint(*msg); err != nil { fatal(err) }
     case "status":
         if err := doStatus(); err != nil {
             fatal(err)
@@ -120,6 +127,7 @@ func main() {
         subArgs := args[1:]
         switch sub {
         case "push":
+            // Deprecated: use 'aigit checkpoint push' instead
             fs := flag.NewFlagSet("sync push", flag.ExitOnError)
             remote := fs.String("remote", defaultStr(getGitConfig("aigit.pushRemote"), "origin"), "remote name")
             if err := fs.Parse(subArgs); err != nil { fatal(err) }
@@ -189,16 +197,17 @@ func main() {
 
 func printHelp() {
     fmt.Println("Aigit commands:")
-    fmt.Println("  aigit checkpoint -m \"summary\"    # save a live snapshot (works during merges)")
+    fmt.Println("  aigit checkpoint -m \"summary\"    # save a manual snapshot (works during merges)")
+    fmt.Println("  aigit checkpoint push [-remote origin]  # share manual checkpoints to remote")
     fmt.Println("  aigit status                     # show last checkpoint summary + diff")
     fmt.Println("  aigit id                         # show your remote user id and refs")
     fmt.Println("  aigit list [-n 20] [--meta]      # list recent checkpoints for this branch")
     fmt.Println("  aigit restore <sha>              # restore files from a checkpoint")
-    fmt.Println("  aigit sync push|pull [options]   # push/pull checkpoint refs via remote")
+    fmt.Println("  aigit sync pull [options]        # fetch checkpoint refs via remote (manual)")
     fmt.Println("  aigit remote-list [--user id]    # list users or a user's remote checkpoints")
     fmt.Println("  aigit apply --from <user>        # apply a remote user's checkpoint to worktree")
     fmt.Println("  aigit tail [-n 100]              # stream watcher logs (AI summaries + checkpoints)")
-    fmt.Println("  aigit watch [-interval 3m] [-summary ai|diff|off]  # background snapshots on change")
+    fmt.Println("  aigit watch [-interval 5m] [-summary ai|diff|off]  # background snapshots on change")
     fmt.Println("  aigit init-shell --zsh|--bash     # install shell integration so updates pop up while you work")
     fmt.Println("  aigit stop                       # stop the background watcher for this repo")
     fmt.Println("")
@@ -286,81 +295,11 @@ func isMerging() bool {
 // ---- Commands ----
 
 func doCheckpoint(summary string) error {
+    // Write snapshot to checkpoint ref (manual share only)
     ref, err := ckRef()
-    if err != nil {
-        return err
-    }
-
-    // Create a temp dir and point GIT_INDEX_FILE to a path inside it.
-    // Do NOT pre-create the file; let Git create it to avoid "index file smaller than expected".
-    tmpdir, err := os.MkdirTemp("", "aigit-index-*")
-    if err != nil {
-        return err
-    }
-    defer os.RemoveAll(tmpdir)
-    idxPath := filepath.Join(tmpdir, "index")
-
-    env := map[string]string{"GIT_INDEX_FILE": idxPath}
-
-    if _, err := gitEnv(env, "add", "-A"); err != nil {
-        return err
-    }
-    tree, err := gitEnv(env, "write-tree")
-    if err != nil {
-        return err
-    }
-
-    // Find parent (previous checkpoint commit if exists)
-    var parent string
-    if out, err := git("rev-parse", "-q", "--verify", ref+"^{commit}"); err == nil {
-        parent = out
-    }
-
-    base, err := git("rev-parse", "HEAD")
-    if err != nil {
-        // New repository without commits: set base to zero OID marker
-        base = "0000000000000000000000000000000000000000"
-    }
-    merging := "no"
-    if isMerging() {
-        merging = "yes"
-    }
-
-    meta := fmt.Sprintf("Aigit-Base: %s\nAigit-When: %s\nAigit-Merge: %s\n", base, time.Now().UTC().Format(time.RFC3339), merging)
-
-    // Build commit via commit-tree, piping message
-    var newSha string
-    {
-        args := []string{"commit-tree", tree}
-        if parent != "" {
-            args = append(args, "-p", parent)
-        }
-        cmd := exec.Command("git", args...)
-        cmd.Stdin = strings.NewReader(summary + "\n\n" + meta + "\n")
-        var out bytes.Buffer
-        var stderr bytes.Buffer
-        cmd.Stdout = &out
-        cmd.Stderr = &stderr
-        if err := cmd.Run(); err != nil {
-            if stderr.Len() > 0 {
-                return fmt.Errorf("git %v: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
-            }
-            return fmt.Errorf("git %v: %w", strings.Join(args, " "), err)
-        }
-        newSha = strings.TrimSpace(out.String())
-    }
-
-    // Atomic update-ref
-    if parent != "" {
-        if _, err := git("update-ref", "-m", fmt.Sprintf("aigit: %s", summary), ref, newSha, parent); err != nil {
-            return err
-        }
-    } else {
-        if _, err := git("update-ref", "-m", fmt.Sprintf("aigit: %s", summary), ref, newSha); err != nil {
-            return err
-        }
-    }
-
+    if err != nil { return err }
+    newSha, err := writeSnapshotToRef(summary, ref)
+    if err != nil { return err }
     if !quietEcho {
         fmt.Printf("update-arrived!\n")
         fmt.Printf("Summary: %s\n", summary)
@@ -385,17 +324,62 @@ func doCheckpoint(summary string) error {
             }
         }
     }
-    if !quietEcho {
-        fmt.Printf("Checkpoint: %s  (%s)\n", newSha, summary)
-    }
+    if !quietEcho { fmt.Printf("Checkpoint: %s  (%s)\n", newSha, summary) }
     logLine("Checkpoint: %s  (%s)", newSha, summary)
-    // Optional autopush
-    if remote := strings.TrimSpace(getGitConfig("aigit.pushRemote")); remote != "" {
-        if err := pushCheckpoints(remote); err != nil {
-            fmt.Fprintf(os.Stderr, "push checkpoints failed: %v\n", err)
-        }
-    }
+    // Checkpoints are manual by default; no autopush here.
     return nil
+}
+
+// writeSnapshotToRef snapshots the working tree and updates targetRef to a new commit.
+func writeSnapshotToRef(summary, targetRef string) (string, error) {
+    // Create a temp dir and point GIT_INDEX_FILE to a path inside it.
+    tmpdir, err := os.MkdirTemp("", "aigit-index-*")
+    if err != nil { return "", err }
+    defer os.RemoveAll(tmpdir)
+    idxPath := filepath.Join(tmpdir, "index")
+    env := map[string]string{"GIT_INDEX_FILE": idxPath}
+    if _, err := gitEnv(env, "add", "-A"); err != nil { return "", err }
+    tree, err := gitEnv(env, "write-tree")
+    if err != nil { return "", err }
+
+    // Parent is last commit on targetRef if exists
+    var parent string
+    if out, err := git("rev-parse", "-q", "--verify", targetRef+"^{commit}"); err == nil { parent = out }
+
+    base, err := git("rev-parse", "HEAD")
+    if err != nil { base = "0000000000000000000000000000000000000000" }
+    merging := "no"
+    if isMerging() { merging = "yes" }
+
+    meta := fmt.Sprintf("Aigit-Base: %s\nAigit-When: %s\nAigit-Merge: %s\n", base, time.Now().UTC().Format(time.RFC3339), merging)
+
+    // Build commit via commit-tree
+    var newSha string
+    {
+        args := []string{"commit-tree", tree}
+        if parent != "" { args = append(args, "-p", parent) }
+        cmd := exec.Command("git", args...)
+        cmd.Stdin = strings.NewReader(summary + "\n\n" + meta + "\n")
+        var out bytes.Buffer
+        var stderr bytes.Buffer
+        cmd.Stdout = &out
+        cmd.Stderr = &stderr
+        if err := cmd.Run(); err != nil {
+            if stderr.Len() > 0 {
+                return "", fmt.Errorf("git %v: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+            }
+            return "", fmt.Errorf("git %v: %w", strings.Join(args, " "), err)
+        }
+        newSha = strings.TrimSpace(out.String())
+    }
+
+    // Atomic update-ref
+    if parent != "" {
+        if _, err := git("update-ref", "-m", fmt.Sprintf("aigit: %s", summary), targetRef, newSha, parent); err != nil { return "", err }
+    } else {
+        if _, err := git("update-ref", "-m", fmt.Sprintf("aigit: %s", summary), targetRef, newSha); err != nil { return "", err }
+    }
+    return newSha, nil
 }
 
 func doStatus() error {
@@ -458,6 +442,7 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
     }
     fmt.Printf("Watching %s (interval=%s, settle=%s, summary=%s)...\n", root, interval, settle, summaryMode)
     recordWatchPID()
+    defer clearWatchPID()
     fmt.Println("Tip: run 'aigit tail' in another terminal to view live summaries and checkpoints.")
 
     // Start fsnotify-based watcher in a goroutine
@@ -474,6 +459,10 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
 
     ticker := time.NewTicker(interval)
     defer ticker.Stop()
+    // idle auto-stop if no local edits for 30m
+    idleTimeout := 30 * time.Minute
+    idleTimer := time.NewTimer(idleTimeout)
+    defer idleTimer.Stop()
 
     var lastEvent time.Time
     active := false
@@ -486,6 +475,8 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
                 fmt.Println("Detected changes; live checkpoints activated.")
             }
             lastEvent = time.Now()
+            if !idleTimer.Stop() { select { case <-idleTimer.C: default: } }
+            _ = idleTimer.Reset(idleTimeout)
         case <-time.After(settle):
             if active && !lastEvent.IsZero() && time.Since(lastEvent) >= settle {
                 if err := maybeCheckpoint(summaryMode, aiModel); err != nil {
@@ -506,11 +497,19 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
             if err := maybeCheckpoint(summaryMode, aiModel); err != nil {
                 fmt.Fprintf(os.Stderr, "checkpoint error: %v\n", err)
             }
+        case <-idleTimer.C:
+            // No local file changes for idleTimeout; stop watcher
+            fmt.Println("No local changes for 30m; stopping watcher.")
+            return nil
         }
     }
 }
 
 func maybeCheckpoint(summaryMode, aiModel string) error {
+    if time.Now().Before(suppressSnapshotsUntil) {
+        // Recently applied from remote; skip to avoid ping-pong
+        return nil
+    }
     changed, err := workingTreeChanged()
     if err != nil {
         return err
@@ -559,7 +558,45 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
     } else if used == "diff" {
         fmt.Printf("Summary (diff): %s\n", summary)
     }
-    return doCheckpoint(summary)
+    // Live snapshot: update live ref and push to remote if configured/default is available
+    br, _ := currentBranch()
+    target := liveLocalRef(br)
+    newSha, err := writeSnapshotToRef(summary, target)
+    if err != nil { return err }
+
+    fmt.Printf("update-arrived!\n")
+    fmt.Printf("Summary: %s\n", summary)
+    logLine("update-arrived!")
+    logLine("Summary: %s", summary)
+    if files, err := git("diff-tree", "--no-commit-id", "--name-status", "-r", newSha); err == nil && strings.TrimSpace(files) != "" {
+        fmt.Println("Files:")
+        logLine("Files:")
+        scanner := bufio.NewScanner(strings.NewReader(files))
+        count := 0
+        for scanner.Scan() {
+            line := scanner.Text()
+            fmt.Printf("  %s\n", line)
+            logLine("  %s", line)
+            count++
+            if count >= 20 {
+                fmt.Println("  ...")
+                logLine("  ...")
+                break
+            }
+        }
+    }
+    fmt.Printf("Live: %s  (%s)\n", newSha, summary)
+    logLine("Live: %s  (%s)", newSha, summary)
+
+    // Attempt to push live by default: use configured pushRemote or origin if present
+    remote := strings.TrimSpace(getGitConfig("aigit.pushRemote"))
+    if remote == "" && hasRemote("origin") { remote = "origin" }
+    if remote != "" {
+        if err := pushLive(remote); err != nil {
+            fmt.Fprintf(os.Stderr, "push live failed: %v\n", err)
+        }
+    }
+    return nil
 }
 
 func workingTreeChanged() (bool, error) {

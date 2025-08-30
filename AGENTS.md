@@ -2,10 +2,10 @@
 
 ## Project Structure & Module Organization
 
-- `main.go` — CLI entry, commands (status, checkpoint, list, restore, watch, sync/apply, id).
+- `main.go` — CLI entry, commands (status, checkpoint/push, list, restore, watch, sync pull, apply, id).
 - `ai.go` — OpenRouter summaries (uses `OPENROUTER_API_KEY`).
 - `watch.go` — fsnotify watcher; ignores `.git`, `vendor`, `node_modules`.
-- `sync.go`, `sync_unix.go`, `sync_windows.go` — autostart, user id, push/pull/apply, OS‑specific helpers.
+- `sync.go`, `sync_unix.go`, `sync_windows.go` — autostart, user id, live push/pull/apply, manual checkpoint push, OS‑specific helpers.
 - `aigit_test.go` — end‑to‑end tests using temporary Git repos.
 - `assets/` — branding (logo).
 - `.github/workflows/` — CI (build/tests) and release (GoReleaser).
@@ -51,3 +51,51 @@ Module: `github.com/ReyNeill/aigit` (Go 1.21+).
 - Do not commit secrets. Export `OPENROUTER_API_KEY` in your shell rc.
 - Shell integration: `aigit init-shell --zsh|--bash` to print updates while working. Suppress local echo with `aigit checkpoint -q`.
 - CI: online tests run only if `OPENROUTER_API_KEY` is configured; releases require a `BREW_GITHUB_TOKEN` with `repo` scope.
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+- `main.go` — CLI entry and commands (`status`, `checkpoint`/`checkpoint push`, `list`, `restore`, `watch`, `events`, `init-shell`, `stop`).
+- `ai.go` — OpenRouter summaries (uses `OPENROUTER_API_KEY`).
+- `watch.go` — filesystem watcher (fsnotify) and debounce.
+- `sync.go`, `sync_unix.go`, `sync_windows.go` — autostart, user ID, live push/pull/apply, manual checkpoint push, OS helpers.
+- `aigit_test.go` — end‑to‑end tests using temporary Git repos.
+- `scripts/` — shell integration for zsh/bash (live terminal updates).
+- `assets/` — branding; `.github/workflows/` — CI and release.
+
+## Build, Test, and Development Commands
+
+- Build: `go build ./...` (Go 1.21+). Install: `go install github.com/ReyNeill/aigit@latest`.
+- Run locally: `aigit status` (autostarts watcher; default interval 5m). Stop: `aigit stop`.
+- Shell integration: `aigit init-shell --zsh|--bash` then source the printed file.
+- Tests (online AI): `go test -v` (requires `OPENROUTER_API_KEY`).
+- Tests (offline AI): `go test -offline -v` (deterministic, no network). Skip AI: `go test -no_summary`.
+- Useful env while developing: `AIGIT_DISABLE_AUTOSTART=1`.
+
+## Coding Style & Naming Conventions
+
+- Go standard style; run `go fmt ./...`. Keep functions small and focused.
+- Names: exported `UpperCamelCase`, locals `lowerCamelCase`. Avoid one‑letter names.
+- Errors: wrap with context via `fmt.Errorf("…: %w", err)`; return early.
+- Platform‑specific code in `*_unix.go` / `*_windows.go`.
+- Be conservative with stdout prints; for events use `logLine(...)` so shell integration picks them up.
+
+## Testing Guidelines
+
+- Framework: Go `testing`. Tests live in `*_test.go` (see `aigit_test.go`).
+- Tests create temp Git repos; they do not modify your working tree.
+- Online AI tests require `OPENROUTER_API_KEY`; CI runs offline by default.
+- Example: `go test -offline -v` or `go test -run TestAISummaryCheckpoint -v`.
+
+## Commit & Pull Request Guidelines
+
+- Commits: short, imperative subjects (≤72 chars), e.g., “Add stop command; fix follower replay”.
+- PRs: include what/why, CLI snippets or screenshots, and test notes. Link issues.
+- Keep diffs minimal; maintain file organization and naming. Ensure `go build` and `go test` pass.
+- Do not commit binaries, secrets, or local config.
+
+## Security & Configuration Tips
+
+- Export secrets in your shell rc: `export OPENROUTER_API_KEY=…` (default model `openai/gpt-oss-20b:free`).
+- Watcher cadence: `git config aigit.interval 5m` (e.g., `2m`, `30s`).
+- Quiet local echo when shell integration is active: `aigit checkpoint -q -m "…"`.

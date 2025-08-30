@@ -1,27 +1,29 @@
 This project uses aigit as it's version control system, is built on top of git and it consists of live, restorable "checkpoints" that are written to a separate ref without touching normal branch history. Read this prompt before making changes.
 
 High-level model
-- Aigit snapshots the working tree (tracked + untracked files) into commits under `refs/aigit/checkpoints/<branch>`.
+- Live updates: Aigit snapshots changes into commits under `refs/aigit/live/<branch>` and pushes/pulls/applies them automatically so remote edits behave like local edits, with summaries in your terminal.
+- Manual checkpoints: use `aigit checkpoint -m "…"`. These are stored under `refs/aigit/checkpoints/<branch>` and are not auto‑shared.
 - HEAD is never moved. Normal git history stays clean; you can time‑travel by restoring files from any checkpoint.
 - A temporary git index is used to build trees, so checkpoints work even during merges with conflicts.
-- A background watcher auto‑starts; after the first file save it creates periodic checkpoints with concise one‑line summaries. You can also create explicit checkpoints with your own summary.
+- The watcher auto‑starts; it activates after the first save; it auto‑stops after 30m idle.
 
 Your responsibilities (as an AI coding agent)
-- Produce frequent, meaningful checkpoints with a crisp, one‑line summary in imperative mood (<= 15 words, no trailing period).
-- Prefer explicit checkpoints when your action has intent the diff can’t capture well.
+- Create manual checkpoints at meaningful milestones with a crisp, one‑line summary (<= 15 words, no trailing punctuation).
+- Let live updates cover intermediate saves; use manual checkpoints when intent matters.
 - Never move HEAD or rewrite git history. Use aigit commands; don’t run `git commit` unless explicitly asked by a human.
 - During merges, checkpoint progress often; it’s safe even with conflict markers present.
 
 Core commands
 - Status: `aigit status` — shows branch, last checkpoint summary, and diffstat vs HEAD. Prints “nothing here yet, clean workspace” when clean.
-- Create: `aigit checkpoint -m "Add X; refactor Y"` — immediate snapshot with your summary.
+- Create: `aigit checkpoint -m "Add X; refactor Y"` — manual snapshot with your summary.
 - Quiet create: `aigit checkpoint -q -m "..."` — suppress local echo when shell integration is active.
+- Share checkpoint: `aigit checkpoint push [-remote origin]` — publish manual checkpoints.
 - List: `aigit list [-n 20] [--meta]` — recent checkpoints for the current branch.
 - Restore: `aigit restore <sha>` — write files from a checkpoint into the worktree (does not move HEAD).
 - ID: `aigit id` — shows your user id and ref mapping.
 - Remote discovery: `aigit remote-list [--user <id>]` — list users with checkpoints or browse one user’s checkpoints.
-- Sync (optional): `aigit sync push` pushes your local checkpoints; `aigit sync pull` fetches others; `aigit apply --from <user> [--sha <sha>]` applies a remote checkpoint into the worktree.
-- Watch: no need to start it; any aigit command autostarts the watcher (default interval 5m; change with `git config aigit.interval 2m`).
+- Apply: `aigit apply --from <user> [--sha <sha>]` — apply a remote user’s manual checkpoint.
+- Watch: any aigit command autostarts the watcher (default interval 5m; change with `git config aigit.interval 2m`).
 - Stop watcher: `aigit stop` — stop the background watcher for this repository.
 - Shell integration (recommended): `aigit init-shell --zsh|--bash`, then `source` the printed file so updates appear live in the terminal while working.
 
@@ -38,8 +40,7 @@ Environment & config
 - Useful git config keys (can be set per-repo):
   - `aigit.summary` = `ai` | `diff` | `off`
   - `aigit.interval` default `5m` (e.g., `2m`, `30s`) and `aigit.settle` (e.g., `1.5s`)
-  - `aigit.pushRemote` / `aigit.pullRemote` to sync checkpoint refs
-  - `aigit.autoApply` = `true|false`, `aigit.autoApplyFrom` = `*` or comma list of user ids
+  - Live updates: `aigit.pushRemote` / `aigit.pullRemote` (defaults to `origin` if present), `aigit.autoApply` (default true), `aigit.autoApplyFrom`
 
 Collaboration guardrails
 - Checkpoints are local by default and won’t interrupt others.
@@ -51,7 +52,7 @@ Merge workflows
 - To resume earlier progress during a merge: select a checkpoint SHA from `aigit list` and `aigit restore <sha>`.
 
 Do / Don’t
-- DO: checkpoint after completing a logical step; keep summaries short and informative.
+- DO: create manual checkpoints after completing a logical step; keep summaries short and informative.
 - DO: restore from checkpoints instead of discarding work if you need to revert.
 - DON’T: run `git commit`, `git push`, or move HEAD unless a human requests conventional commits.
 - DON’T: rewrite or delete checkpoint refs belonging to other users.
@@ -59,7 +60,7 @@ Do / Don’t
 Example session (you)
 1) Implement a function and its test files.
 2) `aigit checkpoint -m "Add widget calculator and tests"`
-3) Fix flakiness in test. Save files. (Watcher will auto‑checkpoint, or run another explicit checkpoint with a better message.)
+3) Fix flakiness in test. Save files. (Watcher will live‑update; create another manual checkpoint if you want a curated message.)
 4) During a merge conflict in `server.go`, resolve a file; `aigit checkpoint -m "Resolve conflict in server.go; keep new handler"`.
 5) If needed, browse and restore: `aigit list -n 5 --meta`, pick a SHA, `aigit restore <sha>`.
 

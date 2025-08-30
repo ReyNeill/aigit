@@ -214,9 +214,11 @@ func TestAISummaryCheckpoint(t *testing.T) {
         must(t, err)
     }
 
-    ref, err := ckRef()
+    // Live snapshots update the live ref, not the checkpoint ref
+    br, err := currentBranch()
     must(t, err)
-    subj := runGit(t, repo, "log", "-1", "--format=%s", ref)
+    liveRef := liveLocalRef(br)
+    subj := runGit(t, repo, "log", "-1", "--format=%s", liveRef)
     if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
         if !strings.HasPrefix(subj, "AI: ") {
             t.Fatalf("expected fake AI summary prefix, got: %q", subj)

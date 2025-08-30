@@ -9,6 +9,7 @@ import (
     "path/filepath"
     "strconv"
     "strings"
+    "time"
 )
 
 // ---- Autostart daemon helpers ----
@@ -42,11 +43,11 @@ func maybeAutostartWatch() error {
             if isAlive(pid) { return nil }
         }
     }
-    // Build watch command using config defaults
-    interval := defaultStr(getGitConfig("aigit.interval"), "3m")
+    // Build watch command using config defaults (unified defaults)
+    interval := defaultStr(getGitConfig("aigit.interval"), "5m")
     settle := defaultStr(getGitConfig("aigit.settle"), "1.5s")
     summary := defaultStr(getGitConfig("aigit.summary"), "ai")
-    model := defaultStr(getGitConfig("aigit.summaryModel"), "x-ai/grok-code-fast-1")
+    model := defaultStr(getGitConfig("aigit.summaryModel"), "openai/gpt-oss-20b:free")
     args := []string{"watch", "-interval", interval, "-settle", settle, "-summary", summary, "-model", model}
     cmd := exec.Command(os.Args[0], args...)
     // detach
@@ -69,6 +70,14 @@ func recordWatchPID() {
     if err != nil { return }
     pidPath := filepath.Join(dir, "watch.pid")
     _ = os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())+"\n"), 0o644)
+}
+
+// clearWatchPID removes the pid file if present.
+func clearWatchPID() {
+    dir, err := aigitDir()
+    if err != nil { return }
+    pidPath := filepath.Join(dir, "watch.pid")
+    _ = os.Remove(pidPath)
 }
 
 // ---- Remote sync / apply ----
@@ -101,6 +110,20 @@ func remoteTrackingRef(remote, user, branch string) string {
     return "refs/remotes/" + remote + "/aigit/users/" + user + "/checkpoints/" + branch
 }
 
+// ---- Live update refs ----
+
+func liveLocalRef(branch string) string {
+    return "refs/aigit/live/" + branch
+}
+
+func userLiveRemoteRef(user, branch string) string {
+    return "refs/aigit/users/" + user + "/live/" + branch
+}
+
+func remoteTrackingLiveRef(remote, user, branch string) string {
+    return "refs/remotes/" + remote + "/aigit/users/" + user + "/live/" + branch
+}
+
 func pushCheckpoints(remote string) error {
     br, err := currentBranch()
     if err != nil { return err }
@@ -116,6 +139,27 @@ func fetchCheckpoints(remote string) error {
     // Fetch all aigit refs under remote into refs/remotes/<remote>/aigit/*
     // Use a refspec to ensure they are fetched.
     _, err := git("fetch", remote, "+refs/aigit/*:refs/remotes/"+remote+"/aigit/*")
+    return err
+}
+
+// pushLive pushes the latest local live ref to the remote per-user live namespace.
+func pushLive(remote string) error {
+    br, err := currentBranch()
+    if err != nil { return err }
+    user := getUserID()
+    local := liveLocalRef(br)
+    // Ensure local ref exists; if not, nothing to push
+    if _, err := git("rev-parse", "-q", "--verify", local+"^{commit}"); err != nil {
+        return nil
+    }
+    remoteRef := userLiveRemoteRef(user, br)
+    _, err = git("push", "-f", remote, local+":"+remoteRef)
+    return err
+}
+
+// fetchLive fetches all users' live refs into tracking refs.
+func fetchLive(remote string) error {
+    _, err := git("fetch", remote, "+refs/aigit/users/*/live/*:refs/remotes/"+remote+"/aigit/users/*/live/*")
     return err
 }
 
@@ -149,6 +193,41 @@ func applyRemoteCheckpoint(remote, user, sha string) error {
     }
     // Record last applied
     _ = markApplied(remote, user, br, sha)
+    return nil
+}
+
+func latestRemoteLive(remote, user, branch string) (string, string, error) {
+    ref := remoteTrackingLiveRef(remote, user, branch)
+    sha, err := git("rev-parse", "-q", "--verify", ref+"^{commit}")
+    if err != nil { return "", "", err }
+    subj, _ := git("log", "-1", "--format=%s", ref)
+    return sha, subj, nil
+}
+
+func applyRemoteLive(remote, user, sha string) error {
+    br, err := currentBranch()
+    if err != nil { return err }
+    if strings.TrimSpace(sha) == "" {
+        tip, _, err := latestRemoteLive(remote, user, br)
+        if err != nil { return err }
+        sha = tip
+    }
+    fmt.Printf("Applying live %s from %s/%s to worktree...\n", short(sha), remote, user)
+    logLine("Applying live %s from %s/%s to worktree...", short(sha), remote, user)
+    subj, _ := git("log", "-1", "--format=%s", sha)
+    if strings.TrimSpace(subj) != "" {
+        fmt.Printf("Summary: %s\n", subj)
+        logLine("Summary: %s", subj)
+    }
+    if _, err := git("restore", "--worktree", "--source", sha, "--", "."); err != nil {
+        if _, err2 := git("checkout", sha, "--", "."); err2 != nil {
+            return fmt.Errorf("apply failed: %v; fallback checkout failed: %v", err, err2)
+        }
+    }
+    // Record last applied
+    _ = markApplied(remote, user, br, sha)
+    // Set a short suppression window for local snapshots to avoid ping-pong
+    suppressSnapshots(5)
     return nil
 }
 
@@ -200,11 +279,17 @@ func lastApplied(remote, user, branch string) (string, error) {
 // maybePullAndAutoApply fetches remote checkpoint refs and applies latest from configured users
 func maybePullAndAutoApply() error {
     remote := strings.TrimSpace(getGitConfig("aigit.pullRemote"))
-    if remote == "" { return nil }
-    if err := fetchCheckpoints(remote); err != nil { return err }
+    if remote == "" {
+        // Default to origin if present
+        if hasRemote("origin") { remote = "origin" } else { return nil }
+    }
+    // Fetch live updates by default
+    if err := fetchLive(remote); err != nil { return err }
     br, err := currentBranch()
     if err != nil { return err }
-    auto := strings.EqualFold(strings.TrimSpace(getGitConfig("aigit.autoApply")), "true")
+    // Default to auto-apply live updates unless explicitly disabled
+    autoCfg := strings.TrimSpace(getGitConfig("aigit.autoApply"))
+    auto := (autoCfg == "" || strings.EqualFold(autoCfg, "true"))
     if !auto { return nil }
     allow := strings.TrimSpace(getGitConfig("aigit.autoApplyFrom"))
     var users []string
@@ -218,15 +303,15 @@ func maybePullAndAutoApply() error {
     self := getUserID()
     for _, u := range users {
         if u == "" || u == self { continue }
-        tip, _, err := latestRemoteCheckpoint(remote, u, br)
+        tip, _, err := latestRemoteLive(remote, u, br)
         if err != nil { continue }
         last, _ := lastApplied(remote, u, br)
         if tip != "" && tip != last {
             // apply
-            if err := applyRemoteCheckpoint(remote, u, tip); err != nil {
-                fmt.Fprintf(os.Stderr, "auto-apply from %s failed: %v\n", u, err)
+            if err := applyRemoteLive(remote, u, tip); err != nil {
+                fmt.Fprintf(os.Stderr, "auto-apply (live) from %s failed: %v\n", u, err)
             } else {
-                fmt.Printf("Auto-applied %s from %s/%s\n", short(tip), remote, u)
+                fmt.Printf("Auto-applied live %s from %s/%s\n", short(tip), remote, u)
             }
         }
     }
@@ -234,18 +319,18 @@ func maybePullAndAutoApply() error {
 }
 
 func listRemoteUsers(remote, branch string) ([]string, error) {
-    // Enumerate refs under refs/remotes/<remote>/aigit/users/*/checkpoints/<branch>
+    // Enumerate refs under refs/remotes/<remote>/aigit/users/*/(live|checkpoints)/<branch>
     prefix := "refs/remotes/"+remote+"/aigit/users/"
     out, err := git("for-each-ref", "--format=%(refname)", prefix)
     if err != nil { return nil, err }
     var set = map[string]struct{}{}
     for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
         if line == "" { continue }
-        // Expect refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
+        // Expect refs/remotes/<remote>/aigit/users/<user>/(checkpoints|live)/<branch>
         parts := strings.Split(line, "/")
         if len(parts) < 7 { continue }
         user := parts[5]
-        if parts[6] == "checkpoints" && len(parts) >= 8 && parts[7] == branch {
+        if (parts[6] == "checkpoints" || parts[6] == "live") && len(parts) >= 8 && parts[7] == branch {
             set[user] = struct{}{}
         }
     }
@@ -261,4 +346,20 @@ func splitComma(s string) []string {
         if p != "" { out = append(out, p) }
     }
     return out
+}
+
+// hasRemote reports if the given git remote exists
+func hasRemote(name string) bool {
+    out, err := git("remote")
+    if err != nil { return false }
+    for _, ln := range strings.Split(strings.TrimSpace(out), "\n") {
+        if strings.TrimSpace(ln) == name { return true }
+    }
+    return false
+}
+
+// suppressSnapshots sets a short window in seconds during which local snapshots are skipped.
+func suppressSnapshots(seconds int) {
+    // Declared in main.go
+    suppressSnapshotsUntil = time.Now().Add(time.Duration(seconds) * time.Second)
 }
