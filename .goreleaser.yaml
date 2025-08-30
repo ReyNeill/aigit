@@ -25,14 +25,14 @@ archives:
       - LICENSE
       - README.md
 
-checksums:
+checksum:
   name_template: "checksums.txt"
 
 snapshot:
   name_template: "{{ .Tag }}-SNAPSHOT"
 
 release:
-  draft: true
+  draft: false
   prerelease: false
 
 brews:
