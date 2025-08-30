@@ -92,6 +92,7 @@ Notes
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
 - `aigit restore <sha>` — restore files from a checkpoint into the worktree.
 - `aigit watch` — manual start of the watcher (auto‑started on first use).
+- `aigit stop` — stop the background watcher for the current repository.
 - `aigit sync push [-remote origin]` — push your local checkpoints to a remote namespace.
 - `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote.
 - `aigit remote-list [--remote origin] [--user id] [-n 20] [--meta]` — list users with checkpoints, or show a user's remote checkpoints for the current branch.
