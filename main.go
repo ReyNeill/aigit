@@ -787,6 +787,29 @@ func logLine(format string, a ...any) {
     fmt.Fprintf(f, format+"\n", a...)
 }
 
+// doStop stops the background watcher for this repository if running.
+func doStop() error {
+    dir, err := aigitDir()
+    if err != nil { return err }
+    pidPath := filepath.Join(dir, "watch.pid")
+    b, err := os.ReadFile(pidPath)
+    if err != nil {
+        fmt.Println("No watcher running (pid file not found).")
+        return nil
+    }
+    s := strings.TrimSpace(string(b))
+    pid, err := strconv.Atoi(s)
+    if err != nil {
+        return fmt.Errorf("invalid pid in %s: %s", pidPath, s)
+    }
+    if p, err := os.FindProcess(pid); err == nil {
+        _ = p.Kill()
+    }
+    _ = os.Remove(pidPath)
+    fmt.Printf("Stopped watcher (pid %d).\n", pid)
+    return nil
+}
+
 // suggestSummary returns a one-line summary and the mode used (AI or diff).
 func suggestSummary(summaryMode, aiModel string) (summary string, used string) {
     switch strings.ToLower(summaryMode) {
