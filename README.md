@@ -65,7 +65,7 @@ Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
-## You can teach LLMs how to use aigit pasting them the LLM.txt file
+## Note: You can teach LLMs how to use aigit pasting them the LLM.txt file!
 
 ## Commands
 
