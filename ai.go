@@ -56,7 +56,10 @@ func summarizeWithAI(model string) (string, error) {
         }
     }
 
-    prompt := "Generate a concise one-line summary (<=15 words) of current code changes suitable as a commit subject. Use imperative mood, mention key files or intent. Do not include punctuation at end.\n\nChanged files (git name-status):\n" + diff + conflictNote
+    prompt := "You are summarizing code changes for a live checkpoint.\n" +
+        "Requirements: ONE single line, <= 15 words, imperative mood, present tense, no trailing punctuation. " +
+        "Capture intent and key files. No quotes, no extra text.\n\n" +
+        "Changed files (git name-status):\n" + diff + conflictNote
 
     key := os.Getenv("OPENROUTER_API_KEY")
     if key == "" {
