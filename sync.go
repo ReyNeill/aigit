@@ -26,6 +26,9 @@ func aigitDir() (string, error) {
 }
 
 func maybeAutostartWatch() error {
+    if os.Getenv("AIGIT_DISABLE_AUTOSTART") == "1" {
+        return nil
+    }
     // Only attempt inside a git repo
     if _, err := gitTopLevel(); err != nil {
         return nil
