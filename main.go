@@ -577,6 +577,35 @@ func runStream(name string, args ...string) error {
     return cmd.Run()
 }
 
+func doTail(lines int) error {
+    dir, err := aigitDir()
+    if err != nil { return err }
+    logp := filepath.Join(dir, "aigit.log")
+    // If tail is available, use it. Otherwise, simple follow loop.
+    if _, err := exec.LookPath("tail"); err == nil {
+        args := []string{"-n", fmt.Sprint(lines), "-f", logp}
+        return runStream("tail", args...)
+    }
+    // Minimal fallback: print last N lines, then poll file for appends.
+    b, _ := os.ReadFile(logp)
+    out := string(b)
+    rows := strings.Split(out, "\n")
+    if len(rows) > lines {
+        rows = rows[len(rows)-lines:]
+    }
+    for _, r := range rows { fmt.Println(r) }
+    // Poll every second for new data
+    lastLen := len(b)
+    for {
+        time.Sleep(time.Second)
+        nb, _ := os.ReadFile(logp)
+        if len(nb) > lastLen {
+            os.Stdout.Write(nb[lastLen:])
+            lastLen = len(nb)
+        }
+    }
+}
+
 // suggestSummary returns a one-line summary and the mode used (AI or diff).
 func suggestSummary(summaryMode, aiModel string) (summary string, used string) {
     switch strings.ToLower(summaryMode) {
