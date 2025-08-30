@@ -18,6 +18,12 @@ go build
 
 # Option 2: go install (after pushing to GitHub)
 go install github.com/ReyNeill/aigit@latest
+
+# If `aigit` is not found after go install, ensure Go bin is on PATH:
+# zsh
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+# bash
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 ```
 
 This produces an `aigit` binary.
@@ -65,6 +71,7 @@ Checkpoint: <sha>  (<summary>)
 ## Commands
 
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
+- `aigit version` — print the version (set by GoReleaser in releases).
 - `aigit id` — show your computed user id and the local/remote ref mapping.
 - `aigit checkpoint -m "msg"` — manual snapshot with custom summary.
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
