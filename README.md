@@ -56,16 +56,16 @@ Reload your shell or open a new terminal.
 
 2) Enable live terminal updates (recommended):
 
-- zsh: add to `~/.zshrc`
-
+- For zsh:
 ```
-source /path/to/aigit/scripts/aigit-shell.zsh
+aigit init-shell --zsh
+# then follow the printed instruction to add a single `source` line to ~/.zshrc
 ```
 
-- bash: add to `~/.bashrc` or `~/.bash_profile`
-
+- For bash:
 ```
-source /path/to/aigit/scripts/aigit-shell.bash
+aigit init-shell --bash
+# then follow the printed instruction to add a single `source` line to ~/.bashrc
 ```
 
 3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; updates (checkpoints, AI summaries, applies) pop up in your terminal while you work.
