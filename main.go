@@ -651,6 +651,7 @@ func doInitShell(zsh, bash bool) error {
     if err != nil { return err }
     cfgDir := filepath.Join(home, ".config", "aigit")
     if err := os.MkdirAll(cfgDir, 0o755); err != nil { return err }
+    bin := selfPath()
     if zsh {
         path := filepath.Join(cfgDir, "aigit-shell.zsh")
         content := `# Installed by aigit init-shell --zsh
@@ -670,7 +671,7 @@ function _aigit_watch_repo() {
   AIGIT_EVENTS_ROOT="$top"
   local sid
   sid="zsh:${HOST}:${TTY}:${$}:$top"
-  (cd "$top" && aigit events -id "$sid" -n 50 --follow) &!
+  (cd "$top" && "` + bin + `" events -id "$sid" -n 50 --follow) &!
   AIGIT_EVENTS_PID=$!
 }
 autoload -Uz add-zsh-hook
@@ -698,7 +699,7 @@ _aigit_watch_repo() {
   _AIGIT_EVENTS_ROOT="$top"
   local sid
   sid="bash:${HOSTNAME}:${TTY}:$$:$top"
-  (cd "$top" && aigit events -id "$sid" -n 50 --follow) &
+  (cd "$top" && "` + bin + `" events -id "$sid" -n 50 --follow) &
   _AIGIT_EVENTS_PID=$!
 }
 if [[ -n "$PROMPT_COMMAND" ]]; then
@@ -711,6 +712,14 @@ fi
         fmt.Printf("Installed bash hook at %s\nAdd to ~/.bashrc: source %s\n", path, path)
     }
     return nil
+}
+
+func selfPath() string {
+    p, err := os.Executable()
+    if err != nil || strings.TrimSpace(p) == "" {
+        return "aigit"
+    }
+    return p
 }
 
 func doEvents(sessionID string, back int, follow bool) error {
