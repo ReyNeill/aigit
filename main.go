@@ -407,6 +407,7 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
     }
     fmt.Printf("Watching %s (interval=%s, settle=%s, summary=%s)...\n", root, interval, settle, summaryMode)
     recordWatchPID()
+    fmt.Println("Tip: run 'aigit tail' in another terminal to view live summaries and checkpoints.")
 
     // Start fsnotify-based watcher in a goroutine
     events := make(chan struct{}, 1)
