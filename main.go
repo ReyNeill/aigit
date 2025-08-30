@@ -368,6 +368,12 @@ func doStatus() error {
             fmt.Println("nothing here yet, clean workspace")
         } else {
             fmt.Println(out)
+            // Also show a suggested one-line summary of pending changes
+            mode := strings.ToLower(defaultStr(getGitConfig("aigit.summary"), "ai"))
+            model := defaultStr(getGitConfig("aigit.summaryModel"), "x-ai/grok-code-fast-1")
+            if s, used := suggestSummary(mode, model); strings.TrimSpace(s) != "" {
+                fmt.Printf("Suggested summary (%s): %s\n", used, s)
+            }
         }
     } else {
         return err
@@ -456,13 +462,16 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
     }
     // Build summary
     var summary string
+    var used string
     switch strings.ToLower(summaryMode) {
     case "off":
         summary = "(auto)"
+        used = "off"
     case "ai":
         if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
             if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
                 summary = s
+                used = "AI"
                 break
             } else if err != nil {
                 fmt.Fprintf(os.Stderr, "AI summary failed, falling back to diff: %v\n", err)
@@ -476,6 +485,13 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
         if summary == "" {
             summary = "(auto)"
         }
+        if used == "" { used = "diff" }
+    }
+    // Echo the summary source for clarity in terminal output
+    if used == "AI" {
+        fmt.Printf("AI summary: %s\n", summary)
+    } else if used == "diff" {
+        fmt.Printf("Summary (diff): %s\n", summary)
     }
     return doCheckpoint(summary)
 }
@@ -552,6 +568,24 @@ func runStream(name string, args ...string) error {
     cmd.Stderr = os.Stderr
     cmd.Stdin = os.Stdin
     return cmd.Run()
+}
+
+// suggestSummary returns a one-line summary and the mode used (AI or diff).
+func suggestSummary(summaryMode, aiModel string) (summary string, used string) {
+    switch strings.ToLower(summaryMode) {
+    case "ai":
+        if os.Getenv("OPENROUTER_API_KEY") != "" {
+            if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
+                return s, "AI"
+            }
+        }
+        fallthrough
+    case "diff", "":
+        s, _ := diffOneLiner()
+        return s, "diff"
+    default:
+        return "", strings.ToLower(summaryMode)
+    }
 }
 
 func doID() error {
