@@ -11,7 +11,7 @@ Aigit overlays live, restorable "checkpoint" commits on top of Git without touch
 - No commits, all code changes happen live (including remotely)
 - Commits are now checkpoints one can restore and share with others, stored under `refs/aigit/checkpoints/<branch>`.
 - You can checkpoint while merging! So you can save your progress while resolving a big conflict.
-- Code updates and checkpoints come with one-sentence summaries via OpenRouter (default model `x-ai/grok-code-fast-1`) or a heuristic from `git diff`.
+- Code updates and checkpoints come with one-sentence summaries via OpenRouter (default model `openai/gpt-oss-20b:free`) or a heuristic from `git diff`.
 - Our service (auto-code updates, etc) auto-starts after the first file save, indicating the code is been worked on, so you don't have to possible forget to `aigit status`
 - Optional remote sync: push your checkpoints to a per‑user namespace; fetch/accept others; opt‑in auto‑apply.
 
@@ -86,7 +86,7 @@ Checkpoint: <sha>  (<summary>)
 Set per‑repo in `.git/config` or globally with `--global`.
 
 - `aigit.summary` — `ai` (default) | `diff` | `off`
-- `aigit.summaryModel` — default `x-ai/grok-code-fast-1`
+- `aigit.summaryModel` — default `openai/gpt-oss-20b:free`
 - `aigit.interval` — checkpoint cadence when active (e.g., `30s`, `2m`, `1h`)
 - `aigit.settle` — debounce window after saves (default `1.5s`)
 - `aigit.user` — override your user id for remote namespaces (defaults to `user.email`)
