@@ -54,6 +54,8 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 Reload your shell or open a new terminal.
 
+To test it all works, you can manually start our auto-watcher and check the logs in real-time:
+
 2) In a Git repo, run any `aigit` command (e.g., `./aigit status`). A background watcher auto‑starts and waits (it activates after your first save).
 
 3) Edit and save a file. You’ll see:
