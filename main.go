@@ -399,7 +399,7 @@ func doStatus() error {
             fmt.Println(out)
             // Also show a suggested one-line summary of pending changes
             mode := strings.ToLower(defaultStr(getGitConfig("aigit.summary"), "ai"))
-            model := defaultStr(getGitConfig("aigit.summaryModel"), "x-ai/grok-code-fast-1")
+            model := defaultStr(getGitConfig("aigit.summaryModel"), "openai/gpt-oss-20b:free")
             if s, used := suggestSummary(mode, model); strings.TrimSpace(s) != "" {
                 fmt.Printf("Suggested summary (%s): %s\n", used, s)
             }
