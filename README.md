@@ -65,6 +65,8 @@ Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
+## You can teach LLMs how to use aigit pasting them the LLM.txt file
+
 ## Commands
 
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
