@@ -16,7 +16,8 @@ Module: `github.com/ReyNeill/aigit` (Go 1.21+).
 ## Build, Test, and Development Commands
 
 - Build: `go build` (local) or `go install github.com/ReyNeill/aigit@latest`.
-- Run CLI locally: `go run . status` (or `./aigit status` after build).
+- Run: `aigit status` in a repo (autostarts watcher); stop with `aigit stop`.
+- Interval: default 5m; override per repo `git config aigit.interval 2m`.
 - Tests (online): `go test` (requires `OPENROUTER_API_KEY`).
 - Tests (offline): `go test -offline` (uses a local AI summary fake).
 - Skip AI tests: `go test -no_summary`.
@@ -47,7 +48,6 @@ Module: `github.com/ReyNeill/aigit` (Go 1.21+).
 
 ## Security & Configuration Tips
 
-- Do not commit secrets. Use env vars: `OPENROUTER_API_KEY`, CI secrets (`BREW_GITHUB_TOKEN`).
-- For CI: online tests run only if `OPENROUTER_API_KEY` is configured.
-- Homebrew release updates require the tap repo and a valid PAT in `BREW_GITHUB_TOKEN`.
-
+- Do not commit secrets. Export `OPENROUTER_API_KEY` in your shell rc.
+- Shell integration: `aigit init-shell --zsh|--bash` to print updates while working. Suppress local echo with `aigit checkpoint -q`.
+- CI: online tests run only if `OPENROUTER_API_KEY` is configured; releases require a `BREW_GITHUB_TOKEN` with `repo` scope.

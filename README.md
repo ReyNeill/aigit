@@ -40,13 +40,7 @@ This produces an `aigit` binary.
 
 1) Set your OpenRouter API key (optional but recommended):
 
-- zsh: add to `~/.zshrc`
-
-```sh
-export OPENROUTER_API_KEY="sk-or-v1-..."
-```
-
-- bash: add to `~/.bashrc` or `~/.bash_profile`
+- Add to `~/.zshrc` or `~/.bashrc`
 
 ```sh
 export OPENROUTER_API_KEY="sk-or-v1-..."
@@ -54,21 +48,15 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 Reload your shell or open a new terminal.
 
-2) Enable live terminal updates (recommended):
+2) Enable live terminal updates:
 
 - For zsh:
 ```
 aigit init-shell --zsh
-# then follow the printed instruction to add a single `source` line to ~/.zshrc
+# then follow the printed instruction to add a single `source` line to ~/.zshrc or ~/.bashrc
 ```
 
-- For bash:
-```
-aigit init-shell --bash
-# then follow the printed instruction to add a single `source` line to ~/.bashrc
-```
-
-3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; updates (checkpoints, AI summaries, applies) pop up in your terminal while you work.
+3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; updates (checkpoints, AI summaries, applies) pop up in your terminal while you work. You can stop the watcher in the repo by using `aigit stop`.
 
 4) Edit and save a file. You’ll see:
 

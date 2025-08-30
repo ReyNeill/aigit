@@ -15,12 +15,15 @@ Your responsibilities (as an AI coding agent)
 Core commands
 - Status: `aigit status` — shows branch, last checkpoint summary, and diffstat vs HEAD. Prints “nothing here yet, clean workspace” when clean.
 - Create: `aigit checkpoint -m "Add X; refactor Y"` — immediate snapshot with your summary.
+- Quiet create: `aigit checkpoint -q -m "..."` — suppress local echo when shell integration is active.
 - List: `aigit list [-n 20] [--meta]` — recent checkpoints for the current branch.
 - Restore: `aigit restore <sha>` — write files from a checkpoint into the worktree (does not move HEAD).
 - ID: `aigit id` — shows your user id and ref mapping.
 - Remote discovery: `aigit remote-list [--user <id>]` — list users with checkpoints or browse one user’s checkpoints.
 - Sync (optional): `aigit sync push` pushes your local checkpoints; `aigit sync pull` fetches others; `aigit apply --from <user> [--sha <sha>]` applies a remote checkpoint into the worktree.
-- Watch: no need to start it; any aigit command autostarts the watcher and it activates on first save.
+- Watch: no need to start it; any aigit command autostarts the watcher (default interval 5m; change with `git config aigit.interval 2m`).
+- Stop watcher: `aigit stop` — stop the background watcher for this repository.
+- Shell integration (recommended): `aigit init-shell --zsh|--bash`, then `source` the printed file so updates appear live in the terminal while working.
 
 Summaries
 - Style: imperative, concise, no trailing punctuation. Mention intent and key paths when helpful.
@@ -34,7 +37,7 @@ Environment & config
 - Without a key, summaries fall back to a heuristic derived from `git diff --name-status`.
 - Useful git config keys (can be set per-repo):
   - `aigit.summary` = `ai` | `diff` | `off`
-  - `aigit.interval` (e.g., `30s`) and `aigit.settle` (e.g., `1.5s`)
+  - `aigit.interval` default `5m` (e.g., `2m`, `30s`) and `aigit.settle` (e.g., `1.5s`)
   - `aigit.pushRemote` / `aigit.pullRemote` to sync checkpoint refs
   - `aigit.autoApply` = `true|false`, `aigit.autoApplyFrom` = `*` or comma list of user ids
 
