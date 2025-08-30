@@ -1,0 +1,15 @@
+# Local binaries and build artifacts
+aigit
+dist/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Test caches
+coverage.out
+
+# Local-only notes (do not push)
+TODO.md
+

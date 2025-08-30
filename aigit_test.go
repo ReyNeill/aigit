@@ -1,6 +1,7 @@
 package main
 
 import (
+    "flag"
     "bytes"
     "io"
     "os"
@@ -185,3 +186,46 @@ func TestRemoteSyncAndApply(t *testing.T) {
     }
 }
 
+var noSummary = flag.Bool("no_summary", false, "skip AI summary tests")
+var offline = flag.Bool("offline", false, "allow offline AI summary test using local fake")
+
+func TestAISummaryCheckpoint(t *testing.T) {
+    if *noSummary {
+        t.Skip("-no_summary set; skipping AI summary tests")
+    }
+    repo := withTempRepo(t)
+    defer chdir(t, repo)()
+    must(t, os.Chdir(repo))
+    // Avoid any background autostart interference
+    t.Setenv("AIGIT_DISABLE_AUTOSTART", "1")
+
+    // Make a change
+    os.WriteFile("ai.txt", []byte("hello\n"), 0o644)
+
+    // By default require network + real OpenRouter key
+    if os.Getenv("OPENROUTER_API_KEY") == "" && !*offline {
+        t.Fatalf("OPENROUTER_API_KEY not set; set it or run `go test -offline` or `-no_summary`")
+    }
+
+    err := maybeCheckpoint("ai", "x-ai/grok-code-fast-1")
+    if err != nil && *offline {
+        // Fallback to local fake if allowed
+        t.Setenv("AIGIT_FAKE_AI_SUMMARY", "1")
+        must(t, maybeCheckpoint("ai", "x-ai/grok-code-fast-1"))
+    } else {
+        must(t, err)
+    }
+
+    ref, err := ckRef()
+    must(t, err)
+    subj := runGit(t, repo, "log", "-1", "--format=%s", ref)
+    if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
+        if !strings.HasPrefix(subj, "AI: ") {
+            t.Fatalf("expected fake AI summary prefix, got: %q", subj)
+        }
+    } else {
+        if strings.TrimSpace(subj) == "" {
+            t.Fatalf("expected non-empty AI summary, got empty")
+        }
+    }
+}

@@ -72,17 +72,21 @@ func recordWatchPID() {
 // ---- Remote sync / apply ----
 
 func getUserID() string {
+    // Priority: explicit aigit.user > git user.email > git user.name > OS user
     if v := strings.TrimSpace(getGitConfig("aigit.user")); v != "" { return sanitizeID(v) }
     if v := strings.TrimSpace(getGitConfig("user.email")); v != "" { return sanitizeID(v) }
+    if v := strings.TrimSpace(getGitConfig("user.name")); v != "" { return sanitizeID(v) }
     if u, err := user.Current(); err == nil && u.Username != "" { return sanitizeID(u.Username) }
     return "anon"
 }
 
 func sanitizeID(s string) string {
-    s = strings.ToLower(s)
-    s = strings.ReplaceAll(s, "@", "_")
+    // Keep '@' and '.' to match common git identities; sanitize path separators and spaces
+    s = strings.TrimSpace(s)
     s = strings.ReplaceAll(s, "/", "_")
     s = strings.ReplaceAll(s, " ", "_")
+    // Avoid ref ending with '.'
+    s = strings.TrimSuffix(s, ".")
     return s
 }
 

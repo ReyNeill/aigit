@@ -1,6 +1,6 @@
 # Aigit — Live Git Checkpoints with AI Summaries
 
-Aigit layers live, restorable "checkpoint" commits on top of Git without touching your normal branch history. It snapshots your working tree (even during merges), writes to a separate ref namespace, and can generate concise one‑line summaries. With optional sync, teammates can push/pull checkpoints and you can opt into auto‑apply for "live updates" without `git pull`.
+Aigit overlays live, restorable "checkpoint" commits on top of Git without touching your normal branch history. It snapshots your working tree (even during merges), writes to a separate ref (`refs/aigit/checkpoints/<branch>`), and generates concise one‑line summaries via OpenRouter. Optionally sync checkpoints to a remote and opt‑in to auto‑apply teammates’ updates — all without moving `HEAD`.
 
 ## Features
 
@@ -13,7 +13,12 @@ Aigit layers live, restorable "checkpoint" commits on top of Git without touchin
 ## Install
 
 ```sh
+# Option 1: from source (local)
 go build
+
+# Option 2: go install (after pushing to GitHub)
+# Replace YOUR_GH_USER with your GitHub handle once the repo is public
+go install github.com/YOUR_GH_USER/aigit@latest
 ```
 
 This produces an `aigit` binary.
@@ -36,7 +41,7 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 Reload your shell or open a new terminal.
 
-2) In a Git repo, run any `aigit` command (e.g., `./aigit status`). A background watcher auto‑starts and waits.
+2) In a Git repo, run any `aigit` command (e.g., `./aigit status`). A background watcher auto‑starts and waits (it activates after your first save).
 
 3) Edit and save a file. You’ll see:
 
@@ -61,6 +66,7 @@ Checkpoint: <sha>  (<summary>)
 ## Commands
 
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
+- `aigit id` — show your computed user id and the local/remote ref mapping.
 - `aigit checkpoint -m "msg"` — manual snapshot with custom summary.
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
 - `aigit restore <sha>` — restore files from a checkpoint into the worktree.
@@ -79,6 +85,7 @@ Set per‑repo in `.git/config` or globally with `--global`.
 - `aigit.interval` — checkpoint cadence when active (e.g., `30s`, `2m`, `1h`)
 - `aigit.settle` — debounce window after saves (default `1.5s`)
 - `aigit.user` — override your user id for remote namespaces (defaults to `user.email`)
+  - By default, Aigit uses your `git user.email` as the user id (safe for ref names). You can override via `aigit.user`.
 
 Remote sync (optional):
 
@@ -105,6 +112,50 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 
 You can list and apply from those using `aigit apply`.
 To discover users and browse their checkpoints use `aigit remote-list`.
+
+## Why It’s Different
+- Clean history: Doesn’t touch `refs/heads/<branch>`; writes to `refs/aigit/...`.
+- Mid‑merge safe: Snapshot the working files (including conflict markers) via a temporary index.
+- No HEAD moves: Restore files from any checkpoint without moving `HEAD`.
+- Live collaboration: Optional push/pull of checkpoint refs; opt‑in auto‑apply.
+
+## How It Works
+- On save, Aigit builds a snapshot using a temporary Git index (leaves your index alone).
+- Creates a tree and commit via `git commit-tree`.
+- Updates `refs/aigit/checkpoints/<branch>` atomically with `git update-ref`.
+- Summaries come from OpenRouter (or a diff heuristic fallback).
+
+## Requirements
+- Git ≥ 2.23 (uses `git restore`; falls back to `checkout` when needed)
+- Go ≥ 1.21 to build from source
+- macOS, Linux, or Windows
+
+## Privacy & Security
+- No telemetry.
+- AI summaries call OpenRouter only when enabled. Keep `OPENROUTER_API_KEY` in your shell rc (e.g., `~/.zshrc`, `~/.bashrc`).
+
+## Troubleshooting
+- Missing remote on push: `git remote add origin <url>` then `aigit sync push`.
+- Status shows nothing: You’ll see “nothing here yet, clean workspace” on a clean tree.
+- Watcher didn’t start: Run `./aigit status` once; ensure files are saved to trigger activation.
+- macOS heavy projects: Increase settle window: `aigit watch -settle 3s` or `git config aigit.settle 3s`.
+- OpenRouter key missing: Aigit falls back to diff‑based summaries.
+
+## Testing
+
+Run the test suite:
+
+```
+go test
+```
+
+By default, AI summary tests call OpenRouter (requires `OPENROUTER_API_KEY`). To run without network, pass `-offline` to use a local fake. To skip AI tests entirely, use `-no_summary`. Tests run in temp repos and won’t affect your working repo.
+
+```
+go test                    # requires OPENROUTER_API_KEY for AI tests
+go test -offline           # run AI tests with local fake (no network)
+go test -no_summary        # skip AI tests entirely
+```
 
 ## Merge‑Friendly
 
