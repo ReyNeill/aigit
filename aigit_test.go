@@ -1,6 +1,7 @@
 package main
 
 import (
+    "flag"
     "bytes"
     "io"
     "os"
@@ -185,3 +186,26 @@ func TestRemoteSyncAndApply(t *testing.T) {
     }
 }
 
+var noSummary = flag.Bool("no_summary", false, "skip AI summary tests")
+
+func TestAISummaryCheckpoint(t *testing.T) {
+    if *noSummary {
+        t.Skip("-no_summary set; skipping AI summary tests")
+    }
+    repo := withTempRepo(t)
+    defer chdir(t, repo)()
+    must(t, os.Chdir(repo))
+    t.Setenv("OPENROUTER_API_KEY", "test-key")
+    t.Setenv("AIGIT_FAKE_AI_SUMMARY", "1")
+
+    // Make a change
+    os.WriteFile("ai.txt", []byte("hello\n"), 0o644)
+    // maybeCheckpoint should use AI mode and our fake summary
+    must(t, maybeCheckpoint("ai", "x-ai/grok-code-fast-1"))
+    ref, err := ckRef()
+    must(t, err)
+    subj := runGit(t, repo, "log", "-1", "--format=%s", ref)
+    if !strings.HasPrefix(subj, "AI: ") {
+        t.Fatalf("expected AI summary prefix, got: %q", subj)
+    }
+}
