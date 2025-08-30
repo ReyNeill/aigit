@@ -146,7 +146,7 @@ func main() {
         intervalStr := fs.String("interval", defaultStr(getGitConfig("aigit.interval"), "3m"), "checkpoint interval, e.g. 30s, 2m, 1h")
         settleStr := fs.String("settle", defaultStr(getGitConfig("aigit.settle"), "1.5s"), "settle window after changes, e.g. 1s")
         summaryMode := fs.String("summary", defaultStr(getGitConfig("aigit.summary"), "ai"), "summary mode: ai|diff|off")
-        aiModel := fs.String("model", defaultStr(getGitConfig("aigit.summaryModel"), "x-ai/grok-code-fast-1"), "OpenRouter model when summary=ai")
+        aiModel := fs.String("model", defaultStr(getGitConfig("aigit.summaryModel"), "openai/gpt-oss-20b:free"), "OpenRouter model when summary=ai")
         if err := fs.Parse(args); err != nil {
             fatal(err)
         }
@@ -179,7 +179,7 @@ func printHelp() {
     fmt.Println("  aigit tail [-n 100]              # stream watcher logs (AI summaries + checkpoints)")
     fmt.Println("  aigit watch [-interval 3m] [-summary ai|diff|off]  # background snapshots on change")
     fmt.Println("")
-    fmt.Println("AI summaries (OpenRouter): set OPENROUTER_API_KEY, default model x-ai/grok-code-fast-1")
+    fmt.Println("AI summaries (OpenRouter): set OPENROUTER_API_KEY, default model openai/gpt-oss-20b:free")
     fmt.Println("")
     fmt.Println("Tips:")
     fmt.Println("  git log --oneline $(git rev-parse --abbrev-ref HEAD | xargs -I{} echo refs/aigit/checkpoints/{})")
