@@ -137,6 +137,8 @@ func main() {
         meta := fs.Bool("meta", false, "show metadata trailers when listing a user")
         if err := fs.Parse(args); err != nil { fatal(err) }
         if err := doRemoteList(*remote, *user, *n, *meta); err != nil { fatal(err) }
+    case "stop":
+        if err := doStop(); err != nil { fatal(err) }
     case "apply":
         fs := flag.NewFlagSet("apply", flag.ExitOnError)
         from := fs.String("from", "", "user id to apply from (required)")
