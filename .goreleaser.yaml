@@ -18,6 +18,8 @@ builds:
 archives:
   - id: archive
     builds: [aigit]
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
         format: zip
@@ -32,7 +34,7 @@ snapshot:
   name_template: "{{ .Tag }}-SNAPSHOT"
 
 release:
-  draft: true
+  draft: false
   prerelease: false
 
 brews:
