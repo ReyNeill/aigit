@@ -41,6 +41,13 @@ func summarizeWithAI(model string) (string, error) {
     if diff == "" {
         return "", nil
     }
+    // Test hook: if AIGIT_FAKE_AI_SUMMARY is set, synthesize a deterministic line
+    if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
+        if s, _ := diffOneLiner(); strings.TrimSpace(s) != "" {
+            return "AI: " + s, nil
+        }
+        return "AI: (auto)", nil
+    }
     // Include conflicts if any
     var conflictNote string
     if isMerging() {
