@@ -81,6 +81,21 @@ func main() {
         lines := fs.Int("n", 100, "lines of history before following")
         if err := fs.Parse(args); err != nil { fatal(err) }
         if err := doTail(*lines); err != nil { fatal(err) }
+    case "events":
+        fs := flag.NewFlagSet("events", flag.ExitOnError)
+        sessionID := fs.String("id", "", "unique session id for state (e.g., host:tty:pid)")
+        back := fs.Int("n", 80, "lines to show on first run")
+        follow := fs.Bool("follow", false, "follow and print events as they arrive")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if strings.TrimSpace(*sessionID) == "" { fatal(errors.New("usage: aigit events -id <session-id> [-n N] [--follow]")) }
+        if err := doEvents(*sessionID, *back, *follow); err != nil { fatal(err) }
+    case "init-shell":
+        fs := flag.NewFlagSet("init-shell", flag.ExitOnError)
+        zsh := fs.Bool("zsh", false, "install zsh integration (~/.zshrc)")
+        bash := fs.Bool("bash", false, "install bash integration (~/.bashrc)")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if !*zsh && !*bash { fatal(errors.New("usage: aigit init-shell --zsh|--bash")) }
+        if err := doInitShell(*zsh, *bash); err != nil { fatal(err) }
     case "id":
         if err := doID(); err != nil { fatal(err) }
     case "list":
