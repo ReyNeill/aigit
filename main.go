@@ -646,6 +646,73 @@ func doTail(lines int) error {
     }
 }
 
+func doInitShell(zsh, bash bool) error {
+    home, err := os.UserHomeDir()
+    if err != nil { return err }
+    cfgDir := filepath.Join(home, ".config", "aigit")
+    if err := os.MkdirAll(cfgDir, 0o755); err != nil { return err }
+    if zsh {
+        path := filepath.Join(cfgDir, "aigit-shell.zsh")
+        content := `# Installed by aigit init-shell --zsh
+typeset -g AIGIT_EVENTS_PID=""
+typeset -g AIGIT_EVENTS_ROOT=""
+function _aigit_watch_repo() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
+  if [[ -z "$top" ]]; then
+    if [[ -n "$AIGIT_EVENTS_PID" ]]; then kill "$AIGIT_EVENTS_PID" 2>/dev/null; AIGIT_EVENTS_PID=""; AIGIT_EVENTS_ROOT=""; fi
+    return 0
+  fi
+  if [[ "$top" == "$AIGIT_EVENTS_ROOT" ]] && kill -0 "$AIGIT_EVENTS_PID" 2>/dev/null; then
+    return 0
+  fi
+  if [[ -n "$AIGIT_EVENTS_PID" ]]; then kill "$AIGIT_EVENTS_PID" 2>/dev/null; fi
+  AIGIT_EVENTS_ROOT="$top"
+  local sid
+  sid="zsh:${HOST}:${TTY}:${$}:$top"
+  (cd "$top" && aigit events -id "$sid" -n 50 --follow) &!
+  AIGIT_EVENTS_PID=$!
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd _aigit_watch_repo
+`
+        if err := os.WriteFile(path, []byte(content), 0o644); err != nil { return err }
+        fmt.Printf("Installed zsh hook at %s\nAdd to ~/.zshrc: source %s\n", path, path)
+    }
+    if bash {
+        path := filepath.Join(cfgDir, "aigit-shell.bash")
+        content := `# Installed by aigit init-shell --bash
+_AIGIT_EVENTS_PID=""
+_AIGIT_EVENTS_ROOT=""
+_aigit_watch_repo() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
+  if [[ -z "$top" ]]; then
+    if [[ -n "$_AIGIT_EVENTS_PID" ]]; then kill "$_AIGIT_EVENTS_PID" 2>/dev/null; _AIGIT_EVENTS_PID=""; _AIGIT_EVENTS_ROOT=""; fi
+    return 0
+  fi
+  if [[ "$top" == "$_AIGIT_EVENTS_ROOT" ]] && kill -0 "$_AIGIT_EVENTS_PID" 2>/dev/null; then
+    return 0
+  fi
+  if [[ -n "$_AIGIT_EVENTS_PID" ]]; then kill "$_AIGIT_EVENTS_PID" 2>/dev/null; fi
+  _AIGIT_EVENTS_ROOT="$top"
+  local sid
+  sid="bash:${HOSTNAME}:${TTY}:$$:$top"
+  (cd "$top" && aigit events -id "$sid" -n 50 --follow) &
+  _AIGIT_EVENTS_PID=$!
+}
+if [[ -n "$PROMPT_COMMAND" ]]; then
+  PROMPT_COMMAND="_aigit_watch_repo; $PROMPT_COMMAND"
+else
+  PROMPT_COMMAND="_aigit_watch_repo"
+fi
+`
+        if err := os.WriteFile(path, []byte(content), 0o644); err != nil { return err }
+        fmt.Printf("Installed bash hook at %s\nAdd to ~/.bashrc: source %s\n", path, path)
+    }
+    return nil
+}
+
 func doEvents(sessionID string, back int, follow bool) error {
     dir, err := aigitDir()
     if err != nil { return err }
