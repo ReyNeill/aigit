@@ -31,9 +31,6 @@ snapshot:
   name_template: "{{ .Tag }}-SNAPSHOT"
 
 release:
-  github:
-    owner: ""
-    name: ""
   draft: true
   prerelease: false
 
@@ -58,4 +55,3 @@ changelog:
 #    description: Live Git checkpoints with AI summaries
 #    install: |
 #      bin.install "aigit"
-
