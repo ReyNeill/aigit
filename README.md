@@ -142,9 +142,10 @@ To discover users and browse their checkpoints use `aigit remote-list`.
 ## Troubleshooting
 - Missing remote on push: `git remote add origin <url>` then `aigit sync push`.
 - Status shows nothing: You’ll see “nothing here yet, clean workspace” on a clean tree.
-- Watcher didn’t start: Run `./aigit status` once; ensure files are saved to trigger activation.
+ - Watcher didn’t start: Run `aigit status` once; ensure files are saved to trigger activation.
 - macOS heavy projects: Increase settle window: `aigit watch -settle 3s` or `git config aigit.settle 3s`.
 - OpenRouter key missing: Aigit falls back to diff‑based summaries.
+ - Homebrew on pre‑release macOS: If Xcode/CLT mismatch errors appear, use `go install github.com/ReyNeill/aigit@latest` until CLT updates.
 
 ## Testing
 
@@ -172,6 +173,10 @@ Checkpoints work during merges because Aigit builds a tree from a temporary inde
 - Checkpoints include all files (tracked or previously untracked) in your worktree.
 - For team sync, ensure your remote allows pushing custom refs (most hosts do). The first push may require `aigit sync push`.
 - Auto‑apply writes files into your working tree. Enable it only if you want live updates from selected users.
+
+## For Agents
+
+If you’re using an AI coding agent, share the `LLM.txt` file in this repo. It explains Aigit’s model, guardrails, and the exact commands to use (checkpoint, list, restore, status, sync/apply), including merge‑time behavior and summary style.
 
 ## License
 
