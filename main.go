@@ -519,6 +519,14 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
         summary = "(auto)"
         used = "off"
     case "ai":
+        // Test/dev hook: allow AI summaries via local fake even without OPENROUTER_API_KEY
+        if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
+            if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
+                summary = s
+                used = "AI"
+                break
+            }
+        }
         if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
             if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
                 summary = s
