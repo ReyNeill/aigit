@@ -630,7 +630,7 @@ func doTail(lines int) error {
     }
 }
 
-func doEvents(sessionID string, back int) error {
+func doEvents(sessionID string, back int, follow bool) error {
     dir, err := aigitDir()
     if err != nil { return err }
     logp := filepath.Join(dir, "aigit.log")
@@ -662,22 +662,22 @@ func doEvents(sessionID string, back int) error {
         for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
         // Advance to end
         _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
-        return nil
+        if !follow { return nil }
     }
     if pos > size {
         // Log rotated or truncated; reset
         pos = 0
     }
-    f, err := os.Open(logp)
-    if err != nil { return nil }
-    defer f.Close()
-    if pos > 0 { if _, err := f.Seek(pos, io.SeekStart); err != nil { pos = 0; f.Seek(0, io.SeekStart) } }
-    io.Copy(os.Stdout, f)
-    // Update position to EOF
-    if fi, err := f.Stat(); err == nil {
-        _ = os.WriteFile(spos, []byte(fmt.Sprint(fi.Size())), 0o644)
+    // Follow mode: print new data as it arrives
+    for {
+        f, err := os.Open(logp)
+        if err != nil { time.Sleep(500 * time.Millisecond); continue }
+        if pos > 0 { if _, err := f.Seek(pos, io.SeekStart); err != nil { pos = 0; f.Seek(0, io.SeekStart) } }
+        n, _ := io.Copy(os.Stdout, f)
+        _ = f.Close()
+        if n > 0 { pos += n; _ = os.WriteFile(spos, []byte(fmt.Sprint(pos)), 0o644) }
+        time.Sleep(500 * time.Millisecond)
     }
-    return nil
 }
 
 // logLine appends a formatted line to the repo-scoped log file.
