@@ -51,10 +51,12 @@ func maybeAutostartWatch() error {
     cmd := exec.Command(os.Args[0], args...)
     // detach
     detach(cmd)
-    // Silence output; could redirect to a log file if desired
-    devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-    cmd.Stdout = devnull
-    cmd.Stderr = devnull
+    // Redirect output to a repo-scoped log so multiple terminals can tail it
+    logp := filepath.Join(dir, "aigit.log")
+    if lf, err := os.OpenFile(logp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+        cmd.Stdout = lf
+        cmd.Stderr = lf
+    }
     if err := cmd.Start(); err != nil {
         return err
     }
@@ -134,6 +136,12 @@ func applyRemoteCheckpoint(remote, user, sha string) error {
         sha = tip
     }
     fmt.Printf("Applying %s from %s/%s to worktree...\n", short(sha), remote, user)
+    logLine("Applying %s from %s/%s to worktree...", short(sha), remote, user)
+    subj, _ := git("log", "-1", "--format=%s", sha)
+    if strings.TrimSpace(subj) != "" {
+        fmt.Printf("Summary: %s\n", subj)
+        logLine("Summary: %s", subj)
+    }
     if _, err := git("restore", "--worktree", "--source", sha, "--", "."); err != nil {
         if _, err2 := git("checkout", sha, "--", "."); err2 != nil {
             return fmt.Errorf("apply failed: %v; fallback checkout failed: %v", err, err2)

@@ -56,7 +56,10 @@ func summarizeWithAI(model string) (string, error) {
         }
     }
 
-    prompt := "Generate a concise one-line summary (<=15 words) of current code changes suitable as a commit subject. Use imperative mood, mention key files or intent. Do not include punctuation at end.\n\nChanged files (git name-status):\n" + diff + conflictNote
+    prompt := "You are summarizing code changes for a live checkpoint.\n" +
+        "Requirements: ONE single line, <= 15 words, imperative mood, present tense, no trailing punctuation. " +
+        "Capture intent and key files. No quotes, no extra text.\n\n" +
+        "Changed files (git name-status):\n" + diff + conflictNote
 
     key := os.Getenv("OPENROUTER_API_KEY")
     if key == "" {
@@ -74,13 +77,16 @@ func summarizeWithAI(model string) (string, error) {
     }
     body, _ := json.Marshal(req)
 
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    // Allow a bit more headroom for network/API latency
+    ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
     defer cancel()
     httpReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(body))
     httpReq.Header.Set("Content-Type", "application/json")
     httpReq.Header.Set("Authorization", "Bearer "+key)
     // OpenRouter encourages one of these headers for attribution; safe defaults.
     httpReq.Header.Set("X-Title", "Aigit")
+    // Adding Referer per OpenRouter guidance may help routing/limits.
+    httpReq.Header.Set("HTTP-Referer", "https://github.com/ReyNeill/aigit")
 
     resp, err := http.DefaultClient.Do(httpReq)
     if err != nil {

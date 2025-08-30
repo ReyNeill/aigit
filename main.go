@@ -6,6 +6,7 @@ import (
     "errors"
     "flag"
     "fmt"
+    "io"
     "os"
     "os/exec"
     "path/filepath"
@@ -75,6 +76,26 @@ func main() {
         if err := doStatus(); err != nil {
             fatal(err)
         }
+    case "tail":
+        fs := flag.NewFlagSet("tail", flag.ExitOnError)
+        lines := fs.Int("n", 100, "lines of history before following")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if err := doTail(*lines); err != nil { fatal(err) }
+    case "events":
+        fs := flag.NewFlagSet("events", flag.ExitOnError)
+        sessionID := fs.String("id", "", "unique session id for state (e.g., host:tty:pid)")
+        back := fs.Int("n", 80, "lines to show on first run")
+        follow := fs.Bool("follow", false, "follow and print events as they arrive")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if strings.TrimSpace(*sessionID) == "" { fatal(errors.New("usage: aigit events -id <session-id> [-n N] [--follow]")) }
+        if err := doEvents(*sessionID, *back, *follow); err != nil { fatal(err) }
+    case "init-shell":
+        fs := flag.NewFlagSet("init-shell", flag.ExitOnError)
+        zsh := fs.Bool("zsh", false, "install zsh integration (~/.zshrc)")
+        bash := fs.Bool("bash", false, "install bash integration (~/.bashrc)")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if !*zsh && !*bash { fatal(errors.New("usage: aigit init-shell --zsh|--bash")) }
+        if err := doInitShell(*zsh, *bash); err != nil { fatal(err) }
     case "id":
         if err := doID(); err != nil { fatal(err) }
     case "list":
@@ -141,7 +162,7 @@ func main() {
         intervalStr := fs.String("interval", defaultStr(getGitConfig("aigit.interval"), "3m"), "checkpoint interval, e.g. 30s, 2m, 1h")
         settleStr := fs.String("settle", defaultStr(getGitConfig("aigit.settle"), "1.5s"), "settle window after changes, e.g. 1s")
         summaryMode := fs.String("summary", defaultStr(getGitConfig("aigit.summary"), "ai"), "summary mode: ai|diff|off")
-        aiModel := fs.String("model", defaultStr(getGitConfig("aigit.summaryModel"), "x-ai/grok-code-fast-1"), "OpenRouter model when summary=ai")
+        aiModel := fs.String("model", defaultStr(getGitConfig("aigit.summaryModel"), "openai/gpt-oss-20b:free"), "OpenRouter model when summary=ai")
         if err := fs.Parse(args); err != nil {
             fatal(err)
         }
@@ -171,9 +192,11 @@ func printHelp() {
     fmt.Println("  aigit sync push|pull [options]   # push/pull checkpoint refs via remote")
     fmt.Println("  aigit remote-list [--user id]    # list users or a user's remote checkpoints")
     fmt.Println("  aigit apply --from <user>        # apply a remote user's checkpoint to worktree")
+    fmt.Println("  aigit tail [-n 100]              # stream watcher logs (AI summaries + checkpoints)")
     fmt.Println("  aigit watch [-interval 3m] [-summary ai|diff|off]  # background snapshots on change")
+    fmt.Println("  aigit init-shell --zsh|--bash     # install shell integration so updates pop up while you work")
     fmt.Println("")
-    fmt.Println("AI summaries (OpenRouter): set OPENROUTER_API_KEY, default model x-ai/grok-code-fast-1")
+    fmt.Println("AI summaries (OpenRouter): set OPENROUTER_API_KEY, default model openai/gpt-oss-20b:free")
     fmt.Println("")
     fmt.Println("Tips:")
     fmt.Println("  git log --oneline $(git rev-parse --abbrev-ref HEAD | xargs -I{} echo refs/aigit/checkpoints/{})")
@@ -331,7 +354,30 @@ func doCheckpoint(summary string) error {
         }
     }
 
+    fmt.Printf("update-arrived!\n")
+    logLine("update-arrived!")
+    fmt.Printf("Summary: %s\n", summary)
+    logLine("Summary: %s", summary)
+    // Print a concise list of changed files for this checkpoint
+    if files, err := git("diff-tree", "--no-commit-id", "--name-status", "-r", newSha); err == nil && strings.TrimSpace(files) != "" {
+        fmt.Println("Files:")
+        logLine("Files:")
+        scanner := bufio.NewScanner(strings.NewReader(files))
+        count := 0
+        for scanner.Scan() {
+            line := scanner.Text()
+            fmt.Printf("  %s\n", line)
+            logLine("  %s", line)
+            count++
+            if count >= 20 {
+                fmt.Println("  ...")
+                logLine("  ...")
+                break
+            }
+        }
+    }
     fmt.Printf("Checkpoint: %s  (%s)\n", newSha, summary)
+    logLine("Checkpoint: %s  (%s)", newSha, summary)
     // Optional autopush
     if remote := strings.TrimSpace(getGitConfig("aigit.pushRemote")); remote != "" {
         if err := pushCheckpoints(remote); err != nil {
@@ -368,6 +414,12 @@ func doStatus() error {
             fmt.Println("nothing here yet, clean workspace")
         } else {
             fmt.Println(out)
+            // Also show a suggested one-line summary of pending changes
+            mode := strings.ToLower(defaultStr(getGitConfig("aigit.summary"), "ai"))
+            model := defaultStr(getGitConfig("aigit.summaryModel"), "openai/gpt-oss-20b:free")
+            if s, used := suggestSummary(mode, model); strings.TrimSpace(s) != "" {
+                fmt.Printf("Suggested summary (%s): %s\n", used, s)
+            }
         }
     } else {
         return err
@@ -395,6 +447,7 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
     }
     fmt.Printf("Watching %s (interval=%s, settle=%s, summary=%s)...\n", root, interval, settle, summaryMode)
     recordWatchPID()
+    fmt.Println("Tip: run 'aigit tail' in another terminal to view live summaries and checkpoints.")
 
     // Start fsnotify-based watcher in a goroutine
     events := make(chan struct{}, 1)
@@ -456,13 +509,16 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
     }
     // Build summary
     var summary string
+    var used string
     switch strings.ToLower(summaryMode) {
     case "off":
         summary = "(auto)"
+        used = "off"
     case "ai":
         if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
             if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
                 summary = s
+                used = "AI"
                 break
             } else if err != nil {
                 fmt.Fprintf(os.Stderr, "AI summary failed, falling back to diff: %v\n", err)
@@ -476,6 +532,13 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
         if summary == "" {
             summary = "(auto)"
         }
+        if used == "" { used = "diff" }
+    }
+    // Echo the summary source for clarity in terminal output
+    if used == "AI" {
+        fmt.Printf("AI summary: %s\n", summary)
+    } else if used == "diff" {
+        fmt.Printf("Summary (diff): %s\n", summary)
     }
     return doCheckpoint(summary)
 }
@@ -552,6 +615,190 @@ func runStream(name string, args ...string) error {
     cmd.Stderr = os.Stderr
     cmd.Stdin = os.Stdin
     return cmd.Run()
+}
+
+func doTail(lines int) error {
+    dir, err := aigitDir()
+    if err != nil { return err }
+    logp := filepath.Join(dir, "aigit.log")
+    // If tail is available, use it. Otherwise, simple follow loop.
+    if _, err := exec.LookPath("tail"); err == nil {
+        args := []string{"-n", fmt.Sprint(lines), "-f", logp}
+        return runStream("tail", args...)
+    }
+    // Minimal fallback: print last N lines, then poll file for appends.
+    b, _ := os.ReadFile(logp)
+    out := string(b)
+    rows := strings.Split(out, "\n")
+    if len(rows) > lines {
+        rows = rows[len(rows)-lines:]
+    }
+    for _, r := range rows { fmt.Println(r) }
+    // Poll every second for new data
+    lastLen := len(b)
+    for {
+        time.Sleep(time.Second)
+        nb, _ := os.ReadFile(logp)
+        if len(nb) > lastLen {
+            os.Stdout.Write(nb[lastLen:])
+            lastLen = len(nb)
+        }
+    }
+}
+
+func doInitShell(zsh, bash bool) error {
+    home, err := os.UserHomeDir()
+    if err != nil { return err }
+    cfgDir := filepath.Join(home, ".config", "aigit")
+    if err := os.MkdirAll(cfgDir, 0o755); err != nil { return err }
+    bin := selfPath()
+    if zsh {
+        path := filepath.Join(cfgDir, "aigit-shell.zsh")
+        content := `# Installed by aigit init-shell --zsh
+typeset -g AIGIT_EVENTS_PID=""
+typeset -g AIGIT_EVENTS_ROOT=""
+function _aigit_watch_repo() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
+  if [[ -z "$top" ]]; then
+    if [[ -n "$AIGIT_EVENTS_PID" ]]; then kill "$AIGIT_EVENTS_PID" 2>/dev/null; AIGIT_EVENTS_PID=""; AIGIT_EVENTS_ROOT=""; fi
+    return 0
+  fi
+  if [[ "$top" == "$AIGIT_EVENTS_ROOT" ]] && kill -0 "$AIGIT_EVENTS_PID" 2>/dev/null; then
+    return 0
+  fi
+  if [[ -n "$AIGIT_EVENTS_PID" ]]; then kill "$AIGIT_EVENTS_PID" 2>/dev/null; fi
+  AIGIT_EVENTS_ROOT="$top"
+  local sid
+  sid="zsh:${HOST}:${TTY}:${$}:$top"
+  (cd "$top" && "` + bin + `" events -id "$sid" -n 50 --follow) &!
+  AIGIT_EVENTS_PID=$!
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd _aigit_watch_repo
+`
+        if err := os.WriteFile(path, []byte(content), 0o644); err != nil { return err }
+        fmt.Printf("Installed zsh hook at %s\nAdd to ~/.zshrc: source %s\n", path, path)
+    }
+    if bash {
+        path := filepath.Join(cfgDir, "aigit-shell.bash")
+        content := `# Installed by aigit init-shell --bash
+_AIGIT_EVENTS_PID=""
+_AIGIT_EVENTS_ROOT=""
+_aigit_watch_repo() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
+  if [[ -z "$top" ]]; then
+    if [[ -n "$_AIGIT_EVENTS_PID" ]]; then kill "$_AIGIT_EVENTS_PID" 2>/dev/null; _AIGIT_EVENTS_PID=""; _AIGIT_EVENTS_ROOT=""; fi
+    return 0
+  fi
+  if [[ "$top" == "$_AIGIT_EVENTS_ROOT" ]] && kill -0 "$_AIGIT_EVENTS_PID" 2>/dev/null; then
+    return 0
+  fi
+  if [[ -n "$_AIGIT_EVENTS_PID" ]]; then kill "$_AIGIT_EVENTS_PID" 2>/dev/null; fi
+  _AIGIT_EVENTS_ROOT="$top"
+  local sid
+  sid="bash:${HOSTNAME}:${TTY}:$$:$top"
+  (cd "$top" && "` + bin + `" events -id "$sid" -n 50 --follow) &
+  _AIGIT_EVENTS_PID=$!
+}
+if [[ -n "$PROMPT_COMMAND" ]]; then
+  PROMPT_COMMAND="_aigit_watch_repo; $PROMPT_COMMAND"
+else
+  PROMPT_COMMAND="_aigit_watch_repo"
+fi
+`
+        if err := os.WriteFile(path, []byte(content), 0o644); err != nil { return err }
+        fmt.Printf("Installed bash hook at %s\nAdd to ~/.bashrc: source %s\n", path, path)
+    }
+    return nil
+}
+
+func selfPath() string {
+    p, err := os.Executable()
+    if err != nil || strings.TrimSpace(p) == "" {
+        return "aigit"
+    }
+    return p
+}
+
+func doEvents(sessionID string, back int, follow bool) error {
+    dir, err := aigitDir()
+    if err != nil { return err }
+    logp := filepath.Join(dir, "aigit.log")
+    // State dir
+    sdir := filepath.Join(dir, "events")
+    if err := os.MkdirAll(sdir, 0o755); err != nil { return err }
+    sid := strings.ReplaceAll(sessionID, string(os.PathSeparator), "_")
+    spos := filepath.Join(sdir, sid+".pos")
+    // Read last position
+    var pos int64 = 0
+    if b, err := os.ReadFile(spos); err == nil {
+        if p, perr := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64); perr == nil {
+            pos = p
+        }
+    }
+    fi, err := os.Stat(logp)
+    if err != nil {
+        // No log yet; nothing to print
+        return nil
+    }
+    size := fi.Size()
+    if pos == 0 {
+        // First run: print last 'back' lines
+        data, _ := os.ReadFile(logp)
+        lines := strings.Split(string(data), "\n")
+        if back > 0 && len(lines) > back {
+            lines = lines[len(lines)-back:]
+        }
+        for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
+        // Advance to end
+        _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
+        if !follow { return nil }
+    }
+    if pos > size {
+        // Log rotated or truncated; reset
+        pos = 0
+    }
+    // Follow mode: print new data as it arrives
+    for {
+        f, err := os.Open(logp)
+        if err != nil { time.Sleep(500 * time.Millisecond); continue }
+        if pos > 0 { if _, err := f.Seek(pos, io.SeekStart); err != nil { pos = 0; f.Seek(0, io.SeekStart) } }
+        n, _ := io.Copy(os.Stdout, f)
+        _ = f.Close()
+        if n > 0 { pos += n; _ = os.WriteFile(spos, []byte(fmt.Sprint(pos)), 0o644) }
+        time.Sleep(500 * time.Millisecond)
+    }
+}
+
+// logLine appends a formatted line to the repo-scoped log file.
+func logLine(format string, a ...any) {
+    dir, err := aigitDir()
+    if err != nil { return }
+    logp := filepath.Join(dir, "aigit.log")
+    f, err := os.OpenFile(logp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+    if err != nil { return }
+    defer f.Close()
+    fmt.Fprintf(f, format+"\n", a...)
+}
+
+// suggestSummary returns a one-line summary and the mode used (AI or diff).
+func suggestSummary(summaryMode, aiModel string) (summary string, used string) {
+    switch strings.ToLower(summaryMode) {
+    case "ai":
+        if os.Getenv("OPENROUTER_API_KEY") != "" {
+            if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
+                return s, "AI"
+            }
+        }
+        fallthrough
+    case "diff", "":
+        s, _ := diffOneLiner()
+        return s, "diff"
+    default:
+        return "", strings.ToLower(summaryMode)
+    }
 }
 
 func doID() error {

@@ -2,26 +2,30 @@
   <img src="assets/aigit-logo.png" alt="Aigit logo" width="200"/>
 </p>
 
-# Aigit — Live Git Checkpoints with AI Summaries
+# Aigit — Git but updated for AI coding agents (optional human collaboration)
 
 Aigit overlays live, restorable "checkpoint" commits on top of Git without touching your normal branch history. It snapshots your working tree (even during merges), writes to a separate ref (`refs/aigit/checkpoints/<branch>`), and generates concise one‑line summaries via OpenRouter. Optionally sync checkpoints to a remote and opt‑in to auto‑apply teammates’ updates — all without moving `HEAD`.
 
 ## Features
 
-- Live checkpoints on save, stored under `refs/aigit/checkpoints/<branch>`.
-- Safe during merges — snapshot the worktree with conflict markers, and keep normal history clean.
-- One‑line summaries via OpenRouter (default model `x-ai/grok-code-fast-1`) or a heuristic from `git diff`.
-- Background watcher auto‑starts; it activates only after your first file save.
+- No commits, all code changes happen live (including remotely)
+- Commits are now checkpoints one can restore and share with others, stored under `refs/aigit/checkpoints/<branch>`.
+- You can checkpoint while merging! So you can save your progress while resolving a big conflict.
+- Code updates and checkpoints come with one-sentence summaries via OpenRouter (default model `openai/gpt-oss-20b:free`) or a heuristic from `git diff`.
+- Our service (auto-code updates, etc) auto-starts after the first file save, indicating the code is been worked on, so you don't have to possible forget to `aigit status`
 - Optional remote sync: push your checkpoints to a per‑user namespace; fetch/accept others; opt‑in auto‑apply.
 
 ## Install
 
 ```sh
-# Option 1: from source (local)
-go build
-
-# Option 2: go install (after pushing to GitHub)
+# Option 1: go install
 go install github.com/ReyNeill/aigit@latest
+
+# Option 2: Homebrew
+brew update && brew tap ReyNeill/homebrew-tap && brew install aigit && aigit version
+
+# Option 3: build (downloading repo)
+go build
 
 # If `aigit` is not found after go install, ensure Go bin is on PATH:
 # zsh
@@ -32,7 +36,7 @@ echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 
 This produces an `aigit` binary.
 
-## Quick Start
+## Quick Start (Intended Use)
 
 1) Set your OpenRouter API key (optional but recommended):
 
@@ -50,27 +54,34 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 Reload your shell or open a new terminal.
 
-2) In a Git repo, run any `aigit` command (e.g., `./aigit status`). A background watcher auto‑starts and waits (it activates after your first save).
+2) Enable live terminal updates (recommended):
 
-3) Edit and save a file. You’ll see:
+- For zsh:
+```
+aigit init-shell --zsh
+# then follow the printed instruction to add a single `source` line to ~/.zshrc
+```
+
+- For bash:
+```
+aigit init-shell --bash
+# then follow the printed instruction to add a single `source` line to ~/.bashrc
+```
+
+3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; updates (checkpoints, AI summaries, applies) pop up in your terminal while you work.
+
+4) Edit and save a file. You’ll see:
 
 ```
 Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
-4) Browse checkpoints:
+Notes
+- The shell integration runs a lightweight background follower per repository, printing new events as they arrive.
+- Prefer a second pane with `aigit tail` if you want a dedicated continuous view.
 
-```
-./aigit list
-./aigit list -n 10 --meta
-```
-
-5) Restore any checkpoint to the worktree (HEAD not moved):
-
-```
-./aigit restore <sha>
-```
+## Note: You can teach LLMs how to use aigit pasting them the LLM.txt file!
 
 ## Commands
 
@@ -85,13 +96,14 @@ Checkpoint: <sha>  (<summary>)
 - `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote.
 - `aigit remote-list [--remote origin] [--user id] [-n 20] [--meta]` — list users with checkpoints, or show a user's remote checkpoints for the current branch.
 - `aigit apply --from <user> [--remote origin] [--sha <sha>]` — apply a remote user’s checkpoint to your worktree (latest if `--sha` omitted).
+- `aigit events -id <session> [--follow]` — internal helper used by the shell integration to stream new events.
 
 ## Configuration (git config)
 
 Set per‑repo in `.git/config` or globally with `--global`.
 
 - `aigit.summary` — `ai` (default) | `diff` | `off`
-- `aigit.summaryModel` — default `x-ai/grok-code-fast-1`
+- `aigit.summaryModel` — default `openai/gpt-oss-20b:free`
 - `aigit.interval` — checkpoint cadence when active (e.g., `30s`, `2m`, `1h`)
 - `aigit.settle` — debounce window after saves (default `1.5s`)
 - `aigit.user` — override your user id for remote namespaces (defaults to `user.email`)
@@ -123,14 +135,6 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 You can list and apply from those using `aigit apply`.
 To discover users and browse their checkpoints use `aigit remote-list`.
 
-## Homebrew (optional)
-If you prefer Homebrew (macOS/Linux), create a tap repo first (see below), then:
-
-```
-brew tap ReyNeill/homebrew-tap
-brew install aigit
-```
-
 ## Why It’s Different
 - Clean history: Doesn’t touch `refs/heads/<branch>`; writes to `refs/aigit/...`.
 - Mid‑merge safe: Snapshot the working files (including conflict markers) via a temporary index.
@@ -155,9 +159,10 @@ brew install aigit
 ## Troubleshooting
 - Missing remote on push: `git remote add origin <url>` then `aigit sync push`.
 - Status shows nothing: You’ll see “nothing here yet, clean workspace” on a clean tree.
-- Watcher didn’t start: Run `./aigit status` once; ensure files are saved to trigger activation.
+ - Watcher didn’t start: Run `aigit status` once; ensure files are saved to trigger activation.
 - macOS heavy projects: Increase settle window: `aigit watch -settle 3s` or `git config aigit.settle 3s`.
 - OpenRouter key missing: Aigit falls back to diff‑based summaries.
+ - Homebrew on pre‑release macOS: If Xcode/CLT mismatch errors appear, use `go install github.com/ReyNeill/aigit@latest` until CLT updates.
 
 ## Testing
 
@@ -185,6 +190,10 @@ Checkpoints work during merges because Aigit builds a tree from a temporary inde
 - Checkpoints include all files (tracked or previously untracked) in your worktree.
 - For team sync, ensure your remote allows pushing custom refs (most hosts do). The first push may require `aigit sync push`.
 - Auto‑apply writes files into your working tree. Enable it only if you want live updates from selected users.
+
+## For Agents
+
+If you’re using an AI coding agent, share the `LLM.txt` file in this repo. It explains Aigit’s model, guardrails, and the exact commands to use (checkpoint, list, restore, status, sync/apply), including merge‑time behavior and summary style.
 
 ## License
 
