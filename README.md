@@ -56,16 +56,16 @@ Reload your shell or open a new terminal.
 
 To test it all works, you can manually start our auto-watcher and check the logs in real-time:
 
-2) In a Git repo, run any `aigit` command (e.g., `aigit status` or `./aigit status` (if downloaded repo)). A background watcher auto‑starts and waits (it normally activates after your first save).
+1) In a Git repo, run any `aigit` command (e.g., `aigit status` or `./aigit status` (if downloaded repo)). A background watcher auto‑starts and waits (it normally activates after your first save).
 
-3) Edit and save a file. You’ll see:
+2) Edit and save a file. You’ll see:
 
 ```
 Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
-4) Browse checkpoints:
+3) Browse checkpoints:
 
 ```
 ./aigit list
