@@ -178,3 +178,10 @@ Checkpoints work during merges because Aigit builds a tree from a temporary inde
 ## License
 
 MIT
+
+## Release & CI
+
+- CI (offline tests) runs on pushes/PRs.
+- Optional online AI tests run if you add a repository secret `OPENROUTER_API_KEY`.
+- Releases: Tag with `vX.Y.Z` to trigger GoReleaser and publish archives.
+- Homebrew tap: Create `https://github.com/ReyNeill/homebrew-tap` and add a repo secret `BREW_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release action uses it to publish the formula to your tap.
