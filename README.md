@@ -9,7 +9,7 @@ Aigit overlays live, restorable "checkpoint" commits on top of Git without touch
 ## Features
 
 - No commits, all code changes happen live (including remotely)
-- Commits are now checkpints one can restore and share with others, stored under `refs/aigit/checkpoints/<branch>`.
+- Commits are now checkpoints one can restore and share with others, stored under `refs/aigit/checkpoints/<branch>`.
 - You can checkpoint while merging! So you can save your progress while resolving a big conflict.
 - Code updates and checkpoints come with one-sentence summaries via OpenRouter (default model `x-ai/grok-code-fast-1`) or a heuristic from `git diff`.
 - Our service (auto-code updates, etc) auto-starts after the first file save, indicating the code is been worked on, so you don't have to possible forget to `aigit status`
