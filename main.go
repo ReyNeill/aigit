@@ -75,6 +75,11 @@ func main() {
         if err := doStatus(); err != nil {
             fatal(err)
         }
+    case "tail":
+        fs := flag.NewFlagSet("tail", flag.ExitOnError)
+        lines := fs.Int("n", 100, "lines of history before following")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if err := doTail(*lines); err != nil { fatal(err) }
     case "id":
         if err := doID(); err != nil { fatal(err) }
     case "list":
@@ -171,6 +176,7 @@ func printHelp() {
     fmt.Println("  aigit sync push|pull [options]   # push/pull checkpoint refs via remote")
     fmt.Println("  aigit remote-list [--user id]    # list users or a user's remote checkpoints")
     fmt.Println("  aigit apply --from <user>        # apply a remote user's checkpoint to worktree")
+    fmt.Println("  aigit tail [-n 100]              # stream watcher logs (AI summaries + checkpoints)")
     fmt.Println("  aigit watch [-interval 3m] [-summary ai|diff|off]  # background snapshots on change")
     fmt.Println("")
     fmt.Println("AI summaries (OpenRouter): set OPENROUTER_API_KEY, default model x-ai/grok-code-fast-1")
