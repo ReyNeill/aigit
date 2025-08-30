@@ -74,13 +74,16 @@ func summarizeWithAI(model string) (string, error) {
     }
     body, _ := json.Marshal(req)
 
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    // Allow a bit more headroom for network/API latency
+    ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
     defer cancel()
     httpReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(body))
     httpReq.Header.Set("Content-Type", "application/json")
     httpReq.Header.Set("Authorization", "Bearer "+key)
     // OpenRouter encourages one of these headers for attribution; safe defaults.
     httpReq.Header.Set("X-Title", "Aigit")
+    // Adding Referer per OpenRouter guidance may help routing/limits.
+    httpReq.Header.Set("HTTP-Referer", "https://github.com/ReyNeill/aigit")
 
     resp, err := http.DefaultClient.Do(httpReq)
     if err != nil {
