@@ -115,10 +115,12 @@ Run the test suite:
 go test
 ```
 
-AI summary tests run with a local fake (no network). To skip them entirely:
+By default, AI summary tests call OpenRouter (requires `OPENROUTER_API_KEY`). To run without network, pass `-offline` to use a local fake. To skip AI tests entirely, use `-no_summary`.
 
 ```
-go test -no_summary
+go test                    # requires OPENROUTER_API_KEY for AI tests
+go test -offline           # run AI tests with local fake (no network)
+go test -no_summary        # skip AI tests entirely
 ```
 
 ## Merge‑Friendly
