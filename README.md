@@ -61,6 +61,7 @@ Checkpoint: <sha>  (<summary>)
 ## Commands
 
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
+- `aigit id` — show your computed user id and the local/remote ref mapping.
 - `aigit checkpoint -m "msg"` — manual snapshot with custom summary.
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
 - `aigit restore <sha>` — restore files from a checkpoint into the worktree.
@@ -105,6 +106,20 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 
 You can list and apply from those using `aigit apply`.
 To discover users and browse their checkpoints use `aigit remote-list`.
+
+## Testing
+
+Run the test suite:
+
+```
+go test
+```
+
+AI summary tests run with a local fake (no network). To skip them entirely:
+
+```
+go test -no_summary
+```
 
 ## Merge‑Friendly
 
