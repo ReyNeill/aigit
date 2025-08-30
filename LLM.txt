@@ -30,7 +30,7 @@ Summaries
   - "Resolve merge conflict in api/routes.go"
 
 Environment & config
-- To enable AI summaries: set `OPENROUTER_API_KEY` (default model `x-ai/grok-code-fast-1`).
+- To enable AI summaries: set `OPENROUTER_API_KEY` (default model `openai/gpt-oss-20b:free`).
 - Without a key, summaries fall back to a heuristic derived from `git diff --name-status`.
 - Useful git config keys (can be set per-repo):
   - `aigit.summary` = `ai` | `diff` | `off`
