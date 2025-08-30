@@ -843,3 +843,10 @@ func defaultStr(v string, def string) string {
     }
     return v
 }
+    case "events":
+        fs := flag.NewFlagSet("events", flag.ExitOnError)
+        sessionID := fs.String("id", "", "unique session id for state (e.g., host:tty:pid)")
+        back := fs.Int("n", 80, "lines to show on first run")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if strings.TrimSpace(*sessionID) == "" { fatal(errors.New("usage: aigit events -id <session-id>")) }
+        if err := doEvents(*sessionID, *back); err != nil { fatal(err) }
