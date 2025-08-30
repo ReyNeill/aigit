@@ -343,6 +343,7 @@ func doWatch(interval, settle time.Duration, summaryMode, aiModel string) error 
         return fmt.Errorf("not in a git repo: %w", err)
     }
     fmt.Printf("Watching %s (interval=%s, settle=%s, summary=%s)...\n", root, interval, settle, summaryMode)
+    recordWatchPID()
 
     // Start fsnotify-based watcher in a goroutine
     events := make(chan struct{}, 1)
