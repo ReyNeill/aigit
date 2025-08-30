@@ -18,11 +18,14 @@ Aigit overlays live, restorable "checkpoint" commits on top of Git without touch
 ## Install
 
 ```sh
-# Option 1: from source (local)
-go build
-
-# Option 2: go install (after pushing to GitHub)
+# Option 1: go install
 go install github.com/ReyNeill/aigit@latest
+
+# Option 2: Homebrew
+brew update && brew tap ReyNeill/homebrew-tap && brew install aigit && aigit version
+
+# Option 3: build (downloading repo)
+go build
 
 # If `aigit` is not found after go install, ensure Go bin is on PATH:
 # zsh
