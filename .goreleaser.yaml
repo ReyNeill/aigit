@@ -1,0 +1,61 @@
+project_name: aigit
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: aigit
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+
+archives:
+  - id: archive
+    builds: [aigit]
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksums:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-SNAPSHOT"
+
+release:
+  github:
+    owner: ""
+    name: ""
+  draft: true
+  prerelease: false
+
+changelog:
+  sort: desc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+# Homebrew tap (optional) — fill in with your tap repo later
+#brews:
+#  - name: aigit
+#    repository:
+#      owner: your-user
+#      name: homebrew-tap
+#    commit_author:
+#      name: goreleaserbot
+#      email: bot@goreleaser.com
+#    directory: Formula
+#    homepage: https://github.com/your-user/aigit
+#    description: Live Git checkpoints with AI summaries
+#    install: |
+#      bin.install "aigit"
+
