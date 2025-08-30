@@ -34,6 +34,23 @@ release:
   draft: true
   prerelease: false
 
+brews:
+  - name: aigit
+    repository:
+      owner: ReyNeill
+      name: homebrew-tap
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    directory: Formula
+    homepage: https://github.com/ReyNeill/aigit
+    description: Live Git checkpoints with AI summaries (OpenRouter)
+    license: MIT
+    test: |
+      system "#{bin}/aigit", "status"
+    install: |
+      bin.install "aigit"
+
 changelog:
   sort: desc
   filters:

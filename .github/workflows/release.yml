@@ -23,5 +23,7 @@ jobs:
           version: latest
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          # Use a Personal Access Token with repo scope that can access both
+          # this repo and the Homebrew tap repo. Create a secret named
+          # BREW_GITHUB_TOKEN in the repository settings.
+          GITHUB_TOKEN: ${{ secrets.BREW_GITHUB_TOKEN }}

@@ -17,8 +17,7 @@ Aigit overlays live, restorable "checkpoint" commits on top of Git without touch
 go build
 
 # Option 2: go install (after pushing to GitHub)
-# Replace YOUR_GH_USER with your GitHub handle once the repo is public
-go install github.com/YOUR_GH_USER/aigit@latest
+go install github.com/ReyNeill/aigit@latest
 ```
 
 This produces an `aigit` binary.
@@ -113,6 +112,14 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 You can list and apply from those using `aigit apply`.
 To discover users and browse their checkpoints use `aigit remote-list`.
 
+## Homebrew (optional)
+If you prefer Homebrew (macOS/Linux), create a tap repo first (see below), then:
+
+```
+brew tap ReyNeill/homebrew-tap
+brew install aigit
+```
+
 ## Why It’s Different
 - Clean history: Doesn’t touch `refs/heads/<branch>`; writes to `refs/aigit/...`.
 - Mid‑merge safe: Snapshot the working files (including conflict markers) via a temporary index.
@@ -171,3 +178,10 @@ Checkpoints work during merges because Aigit builds a tree from a temporary inde
 ## License
 
 MIT
+
+## Release & CI
+
+- CI (offline tests) runs on pushes/PRs.
+- Optional online AI tests run if you add a repository secret `OPENROUTER_API_KEY`.
+- Releases: Tag with `vX.Y.Z` to trigger GoReleaser and publish archives.
+- Homebrew tap: Create `https://github.com/ReyNeill/homebrew-tap` and add a repo secret `BREW_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release action uses it to publish the formula to your tap.

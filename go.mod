@@ -1,4 +1,4 @@
-module aigit
+module github.com/ReyNeill/aigit
 
 go 1.21
 
