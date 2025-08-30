@@ -977,11 +977,3 @@ func defaultStr(v string, def string) string {
     }
     return v
 }
-    case "events":
-        fs := flag.NewFlagSet("events", flag.ExitOnError)
-        sessionID := fs.String("id", "", "unique session id for state (e.g., host:tty:pid)")
-        back := fs.Int("n", 80, "lines to show on first run")
-        follow := fs.Bool("follow", false, "follow and print events as they arrive")
-        if err := fs.Parse(args); err != nil { fatal(err) }
-        if strings.TrimSpace(*sessionID) == "" { fatal(errors.New("usage: aigit events -id <session-id> [-n N] [--follow]")) }
-        if err := doEvents(*sessionID, *back, *follow); err != nil { fatal(err) }
