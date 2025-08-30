@@ -42,6 +42,8 @@ func main() {
         if err := doStatus(); err != nil {
             fatal(err)
         }
+    case "id":
+        if err := doID(); err != nil { fatal(err) }
     case "list":
         fs := flag.NewFlagSet("list", flag.ExitOnError)
         n := fs.Int("n", 20, "number of checkpoints to show")
@@ -130,6 +132,7 @@ func printHelp() {
     fmt.Println("Aigit commands:")
     fmt.Println("  aigit checkpoint -m \"summary\"    # save a live snapshot (works during merges)")
     fmt.Println("  aigit status                     # show last checkpoint summary + diff")
+    fmt.Println("  aigit id                         # show your remote user id and refs")
     fmt.Println("  aigit list [-n 20] [--meta]      # list recent checkpoints for this branch")
     fmt.Println("  aigit restore <sha>              # restore files from a checkpoint")
     fmt.Println("  aigit sync push|pull [options]   # push/pull checkpoint refs via remote")
@@ -516,6 +519,28 @@ func runStream(name string, args ...string) error {
     cmd.Stderr = os.Stderr
     cmd.Stdin = os.Stdin
     return cmd.Run()
+}
+
+func doID() error {
+    uid := getUserID()
+    br, _ := currentBranch()
+    local, _ := ckRef()
+    pushRemote := strings.TrimSpace(getGitConfig("aigit.pushRemote"))
+    pullRemote := strings.TrimSpace(getGitConfig("aigit.pullRemote"))
+    fmt.Printf("User ID: %s\n", uid)
+    fmt.Printf("Branch: %s\n", br)
+    fmt.Printf("Local ref: %s\n", local)
+    if pushRemote != "" {
+        fmt.Printf("Push target: %s %s\n", pushRemote, userRemoteRef(uid, br))
+    } else {
+        fmt.Printf("Push target: (not configured)\n")
+    }
+    if pullRemote != "" {
+        fmt.Printf("Pull source: %s %s\n", pullRemote, remoteTrackingRef(pullRemote, uid, br))
+    } else {
+        fmt.Printf("Pull source: (not configured)\n")
+    }
+    return nil
 }
 
 func doRemoteList(remote, user string, limit int, showMeta bool) error {
