@@ -80,6 +80,7 @@ Set per‑repo in `.git/config` or globally with `--global`.
 - `aigit.interval` — checkpoint cadence when active (e.g., `30s`, `2m`, `1h`)
 - `aigit.settle` — debounce window after saves (default `1.5s`)
 - `aigit.user` — override your user id for remote namespaces (defaults to `user.email`)
+  - By default, Aigit uses your `git user.email` as the user id (safe for ref names). You can override via `aigit.user`.
 
 Remote sync (optional):
 
