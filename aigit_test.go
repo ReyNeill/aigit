@@ -217,13 +217,13 @@ func TestAISummaryCheckpoint(t *testing.T) {
     ref, err := ckRef()
     must(t, err)
     subj := runGit(t, repo, "log", "-1", "--format=%s", ref)
-    if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" || os.Getenv("OPENROUTER_API_KEY") != "" {
+    if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
         if !strings.HasPrefix(subj, "AI: ") {
             t.Fatalf("expected fake AI summary prefix, got: %q", subj)
         }
     } else {
         if strings.TrimSpace(subj) == "" {
-            t.Fatalf("expected non-empty AI summary, got empty")
+            t.Fatalf("expected non-empty summary, got empty")
         }
     }
 }
