@@ -36,7 +36,7 @@ echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 
 This produces an `aigit` binary.
 
-## Quick Start
+## Quick Start (Intended Use)
 
 1) Set your OpenRouter API key (optional but recommended):
 
@@ -54,26 +54,32 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 Reload your shell or open a new terminal.
 
-To test it all works, you can manually start our auto-watcher and check the logs in real-time:
+2) Enable live terminal updates (recommended):
 
-1) In a Git repo, run any `aigit` command (e.g., `aigit status` or `./aigit status` (if downloaded repo)). A background watcher auto‑starts and waits (it normally activates after your first file save or any aigit command is executed).
+- zsh: add to `~/.zshrc`
 
-2) Edit and save a file. You’ll see:
+```
+source /path/to/aigit/scripts/aigit-shell.zsh
+```
+
+- bash: add to `~/.bashrc` or `~/.bash_profile`
+
+```
+source /path/to/aigit/scripts/aigit-shell.bash
+```
+
+3) In a Git repo, run any `aigit` command (e.g., `aigit status`). The watcher autostarts; updates (checkpoints, AI summaries, applies) pop up in your terminal while you work.
+
+4) Edit and save a file. You’ll see:
 
 ```
 Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
-Automatic terminal updates (optional)
-- To display updates automatically in your terminal before each prompt (no `aigit tail` required), add the shell hook:
-
-```
-# zsh (~/.zshrc)
-source /path/to/aigit/scripts/aigit-shell.zsh
-```
-
-This prints new “update-arrived!”, “Summary: …”, and apply events whenever you press Enter in a repo.
+Notes
+- The shell integration runs a lightweight background follower per repository, printing new events as they arrive.
+- Prefer a second pane with `aigit tail` if you want a dedicated continuous view.
 
 ## Note: You can teach LLMs how to use aigit pasting them the LLM.txt file!
 
