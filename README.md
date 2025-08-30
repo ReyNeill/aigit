@@ -71,6 +71,7 @@ Checkpoint: <sha>  (<summary>)
 ## Commands
 
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
+- `aigit version` — print the version (set by GoReleaser in releases).
 - `aigit id` — show your computed user id and the local/remote ref mapping.
 - `aigit checkpoint -m "msg"` — manual snapshot with custom summary.
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
