@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/aigit-logo.png" alt="Aigit logo" width="200"/>
+</p>
+
 # Aigit — Live Git Checkpoints with AI Summaries
 
 Aigit overlays live, restorable "checkpoint" commits on top of Git without touching your normal branch history. It snapshots your working tree (even during merges), writes to a separate ref (`refs/aigit/checkpoints/<branch>`), and generates concise one‑line summaries via OpenRouter. Optionally sync checkpoints to a remote and opt‑in to auto‑apply teammates’ updates — all without moving `HEAD`.
