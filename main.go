@@ -20,6 +20,7 @@ var (
     version = "dev"
     commit  = "none"
     date    = "unknown"
+    quietEcho = false
 )
 
 func main() {
@@ -66,9 +67,11 @@ func main() {
     case "checkpoint":
         fs := flag.NewFlagSet("checkpoint", flag.ExitOnError)
         msg := fs.String("m", "(auto)", "one-line summary message")
+        q := fs.Bool("q", false, "quiet (suppress local echo; shell integration will display updates)")
         if err := fs.Parse(args); err != nil {
             fatal(err)
         }
+        quietEcho = *q
         if err := doCheckpoint(*msg); err != nil {
             fatal(err)
         }
@@ -161,7 +164,7 @@ func main() {
         }
     case "watch":
         fs := flag.NewFlagSet("watch", flag.ExitOnError)
-        intervalStr := fs.String("interval", defaultStr(getGitConfig("aigit.interval"), "3m"), "checkpoint interval, e.g. 30s, 2m, 1h")
+        intervalStr := fs.String("interval", defaultStr(getGitConfig("aigit.interval"), "5m"), "checkpoint interval, e.g. 30s, 2m, 1h")
         settleStr := fs.String("settle", defaultStr(getGitConfig("aigit.settle"), "1.5s"), "settle window after changes, e.g. 1s")
         summaryMode := fs.String("summary", defaultStr(getGitConfig("aigit.summary"), "ai"), "summary mode: ai|diff|off")
         aiModel := fs.String("model", defaultStr(getGitConfig("aigit.summaryModel"), "openai/gpt-oss-20b:free"), "OpenRouter model when summary=ai")
@@ -358,29 +361,33 @@ func doCheckpoint(summary string) error {
         }
     }
 
-    fmt.Printf("update-arrived!\n")
+    if !quietEcho {
+        fmt.Printf("update-arrived!\n")
+        fmt.Printf("Summary: %s\n", summary)
+    }
     logLine("update-arrived!")
-    fmt.Printf("Summary: %s\n", summary)
     logLine("Summary: %s", summary)
     // Print a concise list of changed files for this checkpoint
     if files, err := git("diff-tree", "--no-commit-id", "--name-status", "-r", newSha); err == nil && strings.TrimSpace(files) != "" {
-        fmt.Println("Files:")
+        if !quietEcho { fmt.Println("Files:") }
         logLine("Files:")
         scanner := bufio.NewScanner(strings.NewReader(files))
         count := 0
         for scanner.Scan() {
             line := scanner.Text()
-            fmt.Printf("  %s\n", line)
+            if !quietEcho { fmt.Printf("  %s\n", line) }
             logLine("  %s", line)
             count++
             if count >= 20 {
-                fmt.Println("  ...")
+                if !quietEcho { fmt.Println("  ...") }
                 logLine("  ...")
                 break
             }
         }
     }
-    fmt.Printf("Checkpoint: %s  (%s)\n", newSha, summary)
+    if !quietEcho {
+        fmt.Printf("Checkpoint: %s  (%s)\n", newSha, summary)
+    }
     logLine("Checkpoint: %s  (%s)", newSha, summary)
     // Optional autopush
     if remote := strings.TrimSpace(getGitConfig("aigit.pushRemote")); remote != "" {
@@ -519,6 +526,14 @@ func maybeCheckpoint(summaryMode, aiModel string) error {
         summary = "(auto)"
         used = "off"
     case "ai":
+        // Test/dev hook: allow AI summaries via local fake even without OPENROUTER_API_KEY
+        if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
+            if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
+                summary = s
+                used = "AI"
+                break
+            }
+        }
         if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
             if s, err := summarizeWithAI(aiModel); err == nil && strings.TrimSpace(s) != "" {
                 summary = s
@@ -749,16 +764,22 @@ func doEvents(sessionID string, back int, follow bool) error {
     }
     size := fi.Size()
     if pos == 0 {
-        // First run: print last 'back' lines
-        data, _ := os.ReadFile(logp)
-        lines := strings.Split(string(data), "\n")
-        if back > 0 && len(lines) > back {
-            lines = lines[len(lines)-back:]
+        if follow {
+            // Shell follower: start at end-of-log, do not replay history
+            _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
+            pos = size
+        } else {
+            // Manual one-shot: show last 'back' lines, then exit
+            data, _ := os.ReadFile(logp)
+            lines := strings.Split(string(data), "\n")
+            if back > 0 && len(lines) > back {
+                lines = lines[len(lines)-back:]
+            }
+            for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
+            // Advance to end and return
+            _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
+            return nil
         }
-        for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
-        // Advance to end
-        _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
-        if !follow { return nil }
     }
     if pos > size {
         // Log rotated or truncated; reset
@@ -785,6 +806,29 @@ func logLine(format string, a ...any) {
     if err != nil { return }
     defer f.Close()
     fmt.Fprintf(f, format+"\n", a...)
+}
+
+// doStop stops the background watcher for this repository if running.
+func doStop() error {
+    dir, err := aigitDir()
+    if err != nil { return err }
+    pidPath := filepath.Join(dir, "watch.pid")
+    b, err := os.ReadFile(pidPath)
+    if err != nil {
+        fmt.Println("No watcher running (pid file not found).")
+        return nil
+    }
+    s := strings.TrimSpace(string(b))
+    pid, err := strconv.Atoi(s)
+    if err != nil {
+        return fmt.Errorf("invalid pid in %s: %s", pidPath, s)
+    }
+    if p, err := os.FindProcess(pid); err == nil {
+        _ = p.Kill()
+    }
+    _ = os.Remove(pidPath)
+    fmt.Printf("Stopped watcher (pid %d).\n", pid)
+    return nil
 }
 
 // suggestSummary returns a one-line summary and the mode used (AI or diff).

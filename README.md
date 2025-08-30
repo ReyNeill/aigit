@@ -91,13 +91,15 @@ Notes
 - `aigit checkpoint -m "msg"` — manual snapshot with custom summary.
 - `aigit list [-n 20] [--meta]` — list recent checkpoints for this branch.
 - `aigit restore <sha>` — restore files from a checkpoint into the worktree.
-- `aigit watch` — manual start of the watcher (auto‑started on first use).
+- `aigit watch` — manual start of the watcher (auto‑started on first use; default interval 5m).
+- `aigit stop` — stop the background watcher for the current repository.
 - `aigit stop` — stop the background watcher for the current repository.
 - `aigit sync push [-remote origin]` — push your local checkpoints to a remote namespace.
 - `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote.
 - `aigit remote-list [--remote origin] [--user id] [-n 20] [--meta]` — list users with checkpoints, or show a user's remote checkpoints for the current branch.
 - `aigit apply --from <user> [--remote origin] [--sha <sha>]` — apply a remote user’s checkpoint to your worktree (latest if `--sha` omitted).
 - `aigit events -id <session> [--follow]` — internal helper used by the shell integration to stream new events.
+  - Tip: to avoid duplicate local echo when you also have shell integration, use `aigit checkpoint -q`.
 
 ## Configuration (git config)
 
@@ -106,6 +108,7 @@ Set per‑repo in `.git/config` or globally with `--global`.
 - `aigit.summary` — `ai` (default) | `diff` | `off`
 - `aigit.summaryModel` — default `openai/gpt-oss-20b:free`
 - `aigit.interval` — checkpoint cadence when active (e.g., `30s`, `2m`, `1h`)
+  - Default: `5m`. Example: `git config aigit.interval 2m`
 - `aigit.settle` — debounce window after saves (default `1.5s`)
 - `aigit.user` — override your user id for remote namespaces (defaults to `user.email`)
   - By default, Aigit uses your `git user.email` as the user id (safe for ref names). You can override via `aigit.user`.
