@@ -629,6 +629,56 @@ func doTail(lines int) error {
     }
 }
 
+func doEvents(sessionID string, back int) error {
+    dir, err := aigitDir()
+    if err != nil { return err }
+    logp := filepath.Join(dir, "aigit.log")
+    // State dir
+    sdir := filepath.Join(dir, "events")
+    if err := os.MkdirAll(sdir, 0o755); err != nil { return err }
+    sid := strings.ReplaceAll(sessionID, string(os.PathSeparator), "_")
+    spos := filepath.Join(sdir, sid+".pos")
+    // Read last position
+    var pos int64 = 0
+    if b, err := os.ReadFile(spos); err == nil {
+        if p, perr := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64); perr == nil {
+            pos = p
+        }
+    }
+    fi, err := os.Stat(logp)
+    if err != nil {
+        // No log yet; nothing to print
+        return nil
+    }
+    size := fi.Size()
+    if pos == 0 {
+        // First run: print last 'back' lines
+        data, _ := os.ReadFile(logp)
+        lines := strings.Split(string(data), "\n")
+        if back > 0 && len(lines) > back {
+            lines = lines[len(lines)-back:]
+        }
+        for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
+        // Advance to end
+        _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
+        return nil
+    }
+    if pos > size {
+        // Log rotated or truncated; reset
+        pos = 0
+    }
+    f, err := os.Open(logp)
+    if err != nil { return nil }
+    defer f.Close()
+    if pos > 0 { if _, err := f.Seek(pos, io.SeekStart); err != nil { pos = 0; f.Seek(0, io.SeekStart) } }
+    io.Copy(os.Stdout, f)
+    // Update position to EOF
+    if fi, err := f.Stat(); err == nil {
+        _ = os.WriteFile(spos, []byte(fmt.Sprint(fi.Size())), 0o644)
+    }
+    return nil
+}
+
 // logLine appends a formatted line to the repo-scoped log file.
 func logLine(format string, a ...any) {
     dir, err := aigitDir()
