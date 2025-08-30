@@ -219,8 +219,11 @@ func TestAISummaryCheckpoint(t *testing.T) {
     ref, err := ckRef()
     must(t, err)
     subj := runGit(t, repo, "log", "-1", "--format=%s", ref)
-    if !(strings.HasPrefix(subj, "AI: ") || !strings.Contains(subj, "AI:")) {
-        // If using real API, prefix may not be present; just ensure it's non-empty
+    if os.Getenv("AIGIT_FAKE_AI_SUMMARY") != "" {
+        if !strings.HasPrefix(subj, "AI: ") {
+            t.Fatalf("expected fake AI summary prefix, got: %q", subj)
+        }
+    } else {
         if strings.TrimSpace(subj) == "" {
             t.Fatalf("expected non-empty AI summary, got empty")
         }
