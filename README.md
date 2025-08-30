@@ -96,6 +96,7 @@ Notes
 - `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote.
 - `aigit remote-list [--remote origin] [--user id] [-n 20] [--meta]` — list users with checkpoints, or show a user's remote checkpoints for the current branch.
 - `aigit apply --from <user> [--remote origin] [--sha <sha>]` — apply a remote user’s checkpoint to your worktree (latest if `--sha` omitted).
+- `aigit events -id <session> [--follow]` — internal helper used by the shell integration to stream new events.
 
 ## Configuration (git config)
 
