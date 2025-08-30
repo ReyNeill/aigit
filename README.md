@@ -18,6 +18,12 @@ go build
 
 # Option 2: go install (after pushing to GitHub)
 go install github.com/ReyNeill/aigit@latest
+
+# If `aigit` is not found after go install, ensure Go bin is on PATH:
+# zsh
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+# bash
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 ```
 
 This produces an `aigit` binary.
