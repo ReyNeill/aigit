@@ -51,10 +51,12 @@ func maybeAutostartWatch() error {
     cmd := exec.Command(os.Args[0], args...)
     // detach
     detach(cmd)
-    // Silence output; could redirect to a log file if desired
-    devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-    cmd.Stdout = devnull
-    cmd.Stderr = devnull
+    // Redirect output to a repo-scoped log so multiple terminals can tail it
+    logp := filepath.Join(dir, "aigit.log")
+    if lf, err := os.OpenFile(logp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+        cmd.Stdout = lf
+        cmd.Stderr = lf
+    }
     if err := cmd.Start(); err != nil {
         return err
     }
