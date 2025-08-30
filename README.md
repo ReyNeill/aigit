@@ -17,8 +17,7 @@ Aigit overlays live, restorable "checkpoint" commits on top of Git without touch
 go build
 
 # Option 2: go install (after pushing to GitHub)
-# Replace YOUR_GH_USER with your GitHub handle once the repo is public
-go install github.com/YOUR_GH_USER/aigit@latest
+go install github.com/ReyNeill/aigit@latest
 ```
 
 This produces an `aigit` binary.
@@ -112,6 +111,14 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 
 You can list and apply from those using `aigit apply`.
 To discover users and browse their checkpoints use `aigit remote-list`.
+
+## Homebrew (optional)
+If you prefer Homebrew (macOS/Linux), create a tap repo first (see below), then:
+
+```
+brew tap ReyNeill/homebrew-tap
+brew install aigit
+```
 
 ## Why It’s Different
 - Clean history: Doesn’t touch `refs/heads/<branch>`; writes to `refs/aigit/...`.
