@@ -25,7 +25,7 @@ archives:
       - LICENSE
       - README.md
 
-checksums:
+checksum:
   name_template: "checksums.txt"
 
 snapshot:
