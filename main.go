@@ -12,6 +12,7 @@ import (
     "strconv"
     "strings"
     "time"
+    "runtime/debug"
 )
 
 var (
@@ -21,6 +22,27 @@ var (
 )
 
 func main() {
+    // Fill version info from build info when not injected (e.g., go install)
+    if version == "dev" {
+        if bi, ok := debug.ReadBuildInfo(); ok && bi != nil {
+            if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+                version = bi.Main.Version
+            }
+            // Extract VCS info if available
+            for _, s := range bi.Settings {
+                switch s.Key {
+                case "vcs.revision":
+                    if commit == "none" && s.Value != "" {
+                        commit = s.Value
+                    }
+                case "vcs.time":
+                    if date == "unknown" && s.Value != "" {
+                        date = s.Value
+                    }
+                }
+            }
+        }
+    }
     if len(os.Args) < 2 {
         printHelp()
         return
