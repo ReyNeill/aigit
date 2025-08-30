@@ -749,16 +749,22 @@ func doEvents(sessionID string, back int, follow bool) error {
     }
     size := fi.Size()
     if pos == 0 {
-        // First run: print last 'back' lines
-        data, _ := os.ReadFile(logp)
-        lines := strings.Split(string(data), "\n")
-        if back > 0 && len(lines) > back {
-            lines = lines[len(lines)-back:]
+        if follow {
+            // Shell follower: start at end-of-log, do not replay history
+            _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
+            pos = size
+        } else {
+            // Manual one-shot: show last 'back' lines, then exit
+            data, _ := os.ReadFile(logp)
+            lines := strings.Split(string(data), "\n")
+            if back > 0 && len(lines) > back {
+                lines = lines[len(lines)-back:]
+            }
+            for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
+            // Advance to end and return
+            _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
+            return nil
         }
-        for _, ln := range lines { if strings.TrimSpace(ln) != "" { fmt.Println(ln) } }
-        // Advance to end
-        _ = os.WriteFile(spos, []byte(fmt.Sprint(size)), 0o644)
-        if !follow { return nil }
     }
     if pos > size {
         // Log rotated or truncated; reset
