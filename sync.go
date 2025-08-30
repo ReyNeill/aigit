@@ -134,6 +134,10 @@ func applyRemoteCheckpoint(remote, user, sha string) error {
         sha = tip
     }
     fmt.Printf("Applying %s from %s/%s to worktree...\n", short(sha), remote, user)
+    subj, _ := git("log", "-1", "--format=%s", sha)
+    if strings.TrimSpace(subj) != "" {
+        fmt.Printf("Summary: %s\n", subj)
+    }
     if _, err := git("restore", "--worktree", "--source", sha, "--", "."); err != nil {
         if _, err2 := git("checkout", sha, "--", "."); err2 != nil {
             return fmt.Errorf("apply failed: %v; fallback checkout failed: %v", err, err2)
