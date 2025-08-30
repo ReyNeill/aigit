@@ -118,14 +118,6 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 You can list and apply from those using `aigit apply`.
 To discover users and browse their checkpoints use `aigit remote-list`.
 
-## Homebrew (optional)
-If you prefer Homebrew (macOS/Linux), create a tap repo first (see below), then:
-
-```
-brew tap ReyNeill/homebrew-tap
-brew install aigit
-```
-
 ## Why It’s Different
 - Clean history: Doesn’t touch `refs/heads/<branch>`; writes to `refs/aigit/...`.
 - Mid‑merge safe: Snapshot the working files (including conflict markers) via a temporary index.
