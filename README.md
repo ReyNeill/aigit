@@ -65,19 +65,6 @@ Detected changes; live checkpoints activated.
 Checkpoint: <sha>  (<summary>)
 ```
 
-3) Browse checkpoints:
-
-```
-./aigit list
-./aigit list -n 10 --meta
-```
-
-5) Restore any checkpoint to the worktree (HEAD not moved):
-
-```
-./aigit restore <sha>
-```
-
 ## Commands
 
 - `aigit status` — last checkpoint summary + diffstat vs HEAD.
