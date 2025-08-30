@@ -205,11 +205,11 @@ func TestAISummaryCheckpoint(t *testing.T) {
         t.Setenv("AIGIT_FAKE_AI_SUMMARY", "1")
     }
 
-    err := maybeCheckpoint("ai", "x-ai/grok-code-fast-1")
+    err := maybeCheckpoint("ai", "openai/gpt-oss-20b:free")
     if err != nil && *offline {
         // Fallback to local fake if allowed
         t.Setenv("AIGIT_FAKE_AI_SUMMARY", "1")
-        must(t, maybeCheckpoint("ai", "x-ai/grok-code-fast-1"))
+        must(t, maybeCheckpoint("ai", "openai/gpt-oss-20b:free"))
     } else {
         must(t, err)
     }
