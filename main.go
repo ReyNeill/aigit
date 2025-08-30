@@ -315,7 +315,8 @@ func doCheckpoint(summary string) error {
 
     base, err := git("rev-parse", "HEAD")
     if err != nil {
-        return err
+        // New repository without commits: set base to zero OID marker
+        base = "0000000000000000000000000000000000000000"
     }
     merging := "no"
     if isMerging() {
