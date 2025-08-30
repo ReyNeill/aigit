@@ -14,6 +14,12 @@ import (
     "time"
 )
 
+var (
+    version = "dev"
+    commit  = "none"
+    date    = "unknown"
+)
+
 func main() {
     if len(os.Args) < 2 {
         printHelp()
@@ -22,6 +28,11 @@ func main() {
 
     cmd := os.Args[1]
     args := os.Args[2:]
+
+    if cmd == "--version" || cmd == "version" || cmd == "-v" {
+        fmt.Printf("aigit %s (%s %s)\n", version, commit, date)
+        return
+    }
 
     // Autostart background watch daemon if not already running
     if cmd != "watch" {
