@@ -2,16 +2,13 @@ package main
 
 import (
     "encoding/json"
-    "errors"
     "fmt"
     "os"
     "os/exec"
     "os/user"
     "path/filepath"
-    "runtime"
     "strconv"
     "strings"
-    "time"
 )
 
 // ---- Autostart daemon helpers ----
@@ -59,17 +56,6 @@ func maybeAutostartWatch() error {
         return err
     }
     return nil
-}
-
-func isAlive(pid int) bool {
-    p, err := os.FindProcess(pid)
-    if err != nil { return false }
-    if runtime.GOOS == "windows" {
-        // Best effort: FindProcess doesn't error if not running on Windows; assume alive
-        return true
-    }
-    err = p.Signal(syscall.Signal(0))
-    return err == nil
 }
 
 // Write the PID of the watcher to file

@@ -67,6 +67,7 @@ Checkpoint: <sha>  (<summary>)
 - `aigit watch` — manual start of the watcher (auto‑started on first use).
 - `aigit sync push [-remote origin]` — push your local checkpoints to a remote namespace.
 - `aigit sync pull [-remote origin]` — fetch checkpoint refs from the remote.
+- `aigit remote-list [--remote origin] [--user id] [-n 20] [--meta]` — list users with checkpoints, or show a user's remote checkpoints for the current branch.
 - `aigit apply --from <user> [--remote origin] [--sha <sha>]` — apply a remote user’s checkpoint to your worktree (latest if `--sha` omitted).
 
 ## Configuration (git config)
@@ -103,6 +104,7 @@ refs/remotes/<remote>/aigit/users/<user>/checkpoints/<branch>
 ```
 
 You can list and apply from those using `aigit apply`.
+To discover users and browse their checkpoints use `aigit remote-list`.
 
 ## Merge‑Friendly
 
@@ -118,4 +120,3 @@ Checkpoints work during merges because Aigit builds a tree from a temporary inde
 ## License
 
 MIT
-

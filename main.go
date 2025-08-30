@@ -73,6 +73,14 @@ func main() {
         default:
             fmt.Println("usage: aigit sync push|pull [options]")
         }
+    case "remote-list":
+        fs := flag.NewFlagSet("remote-list", flag.ExitOnError)
+        remote := fs.String("remote", defaultStr(getGitConfig("aigit.pullRemote"), "origin"), "remote name")
+        user := fs.String("user", "", "filter by user id; if empty, list users")
+        n := fs.Int("n", 20, "number of entries when listing a user")
+        meta := fs.Bool("meta", false, "show metadata trailers when listing a user")
+        if err := fs.Parse(args); err != nil { fatal(err) }
+        if err := doRemoteList(*remote, *user, *n, *meta); err != nil { fatal(err) }
     case "apply":
         fs := flag.NewFlagSet("apply", flag.ExitOnError)
         from := fs.String("from", "", "user id to apply from (required)")
@@ -125,6 +133,7 @@ func printHelp() {
     fmt.Println("  aigit list [-n 20] [--meta]      # list recent checkpoints for this branch")
     fmt.Println("  aigit restore <sha>              # restore files from a checkpoint")
     fmt.Println("  aigit sync push|pull [options]   # push/pull checkpoint refs via remote")
+    fmt.Println("  aigit remote-list [--user id]    # list users or a user's remote checkpoints")
     fmt.Println("  aigit apply --from <user>        # apply a remote user's checkpoint to worktree")
     fmt.Println("  aigit watch [-interval 3m] [-summary ai|diff|off]  # background snapshots on change")
     fmt.Println("")
@@ -317,8 +326,14 @@ func doStatus() error {
     }
     fmt.Println("")
     fmt.Println("Working tree diff vs HEAD:")
-    // Show diff stat without paging
-    if err := runStream("git", "--no-pager", "diff", "--stat"); err != nil {
+    if out, err := git("--no-pager", "diff", "--stat"); err == nil {
+        if strings.TrimSpace(out) == "" {
+            // Nothing changed vs HEAD
+            fmt.Println("nothing here yet, clean workspace")
+        } else {
+            fmt.Println(out)
+        }
+    } else {
         return err
     }
     return nil
@@ -501,6 +516,54 @@ func runStream(name string, args ...string) error {
     cmd.Stderr = os.Stderr
     cmd.Stdin = os.Stdin
     return cmd.Run()
+}
+
+func doRemoteList(remote, user string, limit int, showMeta bool) error {
+    if strings.TrimSpace(remote) == "" { remote = "origin" }
+    // Ensure we have latest checkpoint refs
+    _ = fetchCheckpoints(remote)
+    br, err := currentBranch()
+    if err != nil { return err }
+    if strings.TrimSpace(user) == "" {
+        users, err := listRemoteUsers(remote, br)
+        if err != nil { return err }
+        if len(users) == 0 {
+            fmt.Println("No remote checkpoint users found.")
+            return nil
+        }
+        fmt.Println("Remote users with checkpoints:")
+        for _, u := range users {
+            fmt.Println(" -", u)
+        }
+        return nil
+    }
+    ref := remoteTrackingRef(remote, user, br)
+    if _, err := git("rev-parse", "-q", "--verify", ref); err != nil {
+        return fmt.Errorf("no checkpoints for user %s on %s", user, br)
+    }
+    format := "%h%x09%ct%x09%s"
+    out, err := git("--no-pager", "log", "-n", strconv.Itoa(limit), "--format="+format, ref)
+    if err != nil { return err }
+    lines := strings.Split(strings.TrimSpace(out), "\n")
+    for _, line := range lines {
+        if strings.TrimSpace(line) == "" { continue }
+        parts := strings.SplitN(line, "\t", 3)
+        if len(parts) < 3 { continue }
+        sha, ctStr, subj := parts[0], parts[1], parts[2]
+        ct, _ := strconv.ParseInt(ctStr, 10, 64)
+        rel := relTime(time.Since(time.Unix(ct, 0)))
+        fmt.Printf("%s  %6s  %s\n", sha, rel, subj)
+        if showMeta {
+            body, _ := git("show", "-s", "--format=%B", sha)
+            m := parseMeta(body)
+            line := ""
+            if m.Base != "" { line += fmt.Sprintf("base=%s ", short(m.Base)) }
+            if m.Merge != "" { line += fmt.Sprintf("merge=%s ", m.Merge) }
+            if m.When != "" { line += fmt.Sprintf("when=%s", m.When) }
+            if strings.TrimSpace(line) != "" { fmt.Printf("    %s\n", strings.TrimSpace(line)) }
+        }
+    }
+    return nil
 }
 
 func doList(limit int, showMeta bool) error {
